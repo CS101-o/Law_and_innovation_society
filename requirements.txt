@@ -11,3 +11,4 @@ simpleaudio
 pydub
 speechrecognition
 ffmpeg #brew
+streamlit-mic-recorder

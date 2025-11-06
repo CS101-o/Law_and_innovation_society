@@ -24,6 +24,11 @@ After downloading the file, place it in the folder
         ollama pull nomic-embed-text
         ```
 
+## 🎙️ Voice Interaction
+- Use the microphone widget in the Streamlit app to dictate a question instead of typing. The audio is transcribed locally with the SpeechRecognition library before being sent to the AI.
+- Every AI response now includes a **Read Aloud** button powered by gTTS. Click it to hear the answer immediately inside the browser.
+- Install `ffmpeg` (e.g., `brew install ffmpeg`) to enable the audio conversions required by the recorder.
+
 ## 📂 Setup Legal Documents
 Create a folder named `legal_docs` in this directory. Add your reference PDFs here.
 * *Recommended:* `Consumer_Rights_Act_2015.pdf`

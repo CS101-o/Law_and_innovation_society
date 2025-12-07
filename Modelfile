@@ -1,0 +1,28 @@
+FROM ./UK_Law_Real_Final.gguf
+
+# 1. Set the specific Llama 3 Chat Template (CRITICAL FIX)
+TEMPLATE """<|start_header_id|>system<|end_header_id|>
+
+{{ .System }}<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+{{ .Prompt }}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+"""
+
+# 2. Tell the model exactly when to shut up
+PARAMETER stop "<|start_header_id|>"
+PARAMETER stop "<|end_header_id|>"
+PARAMETER stop "<|eot_id|>"
+
+# 3. Settings for accuracy
+PARAMETER num_ctx 8192
+PARAMETER temperature 0.1
+
+SYSTEM """
+You are an expert UK Contract Law consultant.
+When answering legal scenarios, you MUST follow the IRAC method:
+1. Issue: Identify the core legal question.
+2. Rule: Cite the specific legislation (e.g., CRA 2015) or Case Law provided in the context.
+3. Analysis: Apply the legal rule strictly to the facts provided.
+4. Conclusion: State the likely legal outcome.
+"""

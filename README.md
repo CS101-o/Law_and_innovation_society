@@ -1,5 +1,6 @@
 # Law_and_innovation_society
-
+# To download guff file (the fine_tuned model) ----> https://drive.google.com/file/d/1DTs8bWrYydRTBkSZhGS9Vm9Xz9-Koqu5/view?usp=sharing
+After downloading the file, place it in the folder
 # To run gui, use ---->  streamlit run lawyer_gui.py
 
 * **Specialized Knowledge:** Trained on UK Contract Law principles (IRAC Method).

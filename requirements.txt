@@ -1,0 +1,13 @@
+streamlit
+langchain-ollama
+langchain-community
+langchain-chroma
+langchain-text-splitters
+pypdf
+chromadb
+
+gTTS 
+simpleaudio
+pydub
+speechrecognition
+ffmpeg #brew

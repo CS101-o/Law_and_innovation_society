@@ -1,2 +1,4 @@
 *.gguf
 *.pdf
+wav
+audio/

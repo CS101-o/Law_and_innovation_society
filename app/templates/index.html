@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>UK Contract Law AI – Home</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <!-- Top nav (shared) -->
+  <div class="nav-shell">
+    <div class="nav">
+      <div class="nav-left">
+        <div class="nav-logo">UK</div>
+        <div class="nav-title">Contract Law AI</div>
+      </div>
+      <div class="nav-links">
+        <a href="{{ url_for('home') }}" class="active">Home</a>
+        <a href="{{ url_for('chat') }}">Chat</a>
+        <a href="{{ url_for('about') }}">About</a>
+      </div>
+      <div class="nav-pill">Local · Ollama</div>
+    </div>
+  </div>
+
+  <main class="page">
+    <section class="hero">
+      <div>
+        <h1 class="hero-title">
+          AI assistant for <span>UK contract &amp; consumer law</span>.
+        </h1>
+        <p class="hero-text">
+          Run a fine-tuned local model with PDF statute awareness and IRAC-style reasoning.
+          Nothing leaves your machine.
+        </p>
+
+        <div class="hero-actions">
+          <a href="{{ url_for('chat') }}" class="btn-primary">
+            <span>Open legal assistant</span>
+            <span>↗</span>
+          </a>
+          <a href="{{ url_for('about') }}" class="btn-ghost">Setup &amp; disclaimer</a>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Quick start</div>
+          </div>
+          <ul class="sidebar-list">
+            <li>
+              <span>Install Python deps</span>
+              <span><code>pip install -r requirements.txt</code></span>
+            </li>
+            <li>
+              <span>Download model file</span>
+              <span><code>UK_Law_Real_Final.gguf</code></span>
+            </li>
+            <li>
+              <span>Create Ollama model</span>
+              <span><code>ollama create uk-lawyer -f Modelfile</code></span>
+            </li>
+            <li>
+              <span>Embedding model</span>
+              <span><code>ollama pull nomic-embed-text</code></span>
+            </li>
+            <li>
+              <span>Launch GUI</span>
+              <span><code>streamlit run lawyer_gui.py</code></span>
+            </li>
+          </ul>
+          <p class="small" style="margin-top:8px;">
+            Add PDFs to <code>legal_docs/</code>, e.g.
+            <code>Consumer_Rights_Act_2015.pdf</code> and
+            <code>Tesco_v_USDAW_2024.pdf</code>.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

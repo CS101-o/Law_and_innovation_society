@@ -1,0 +1,1 @@
+# this is were we create the database tables

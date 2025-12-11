@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>UK Contract Law AI – About</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="nav-shell">
+    <div class="nav">
+      <div class="nav-left">
+        <div class="nav-logo">UK</div>
+        <div class="nav-title">Contract Law AI</div>
+      </div>
+      <div class="nav-links">
+        <a href="{{ url_for('home') }}">Home</a>
+        <a href="{{ url_for('chat') }}">Chat</a>
+        <a href="{{ url_for('about') }}" class="active">About</a>
+      </div>
+      <div class="nav-pill">Info</div>
+    </div>
+  </div>
+
+  <main class="page">
+    <section class="panel-grid">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">What this tool does</div>
+        </div>
+        <p class="small" style="font-size:13px; line-height:1.6;">
+          This interface is a front-end for a local AI model fine-tuned on
+          UK contract and consumer law. It aims to:
+        </p>
+        <ul class="sidebar-list" style="margin-top:10px;">
+          <li>
+            <span>Use the IRAC method</span>
+            <span class="small">Issue · Rule · Application · Conclusion</span>
+          </li>
+          <li>
+            <span>Distinguish claim types</span>
+            <span class="small">Goods · Services · Digital content</span>
+          </li>
+          <li>
+            <span>Read your PDFs</span>
+            <span class="small">e.g. Consumer Rights Act 2015</span>
+          </li>
+          <li>
+            <span>Run locally</span>
+            <span class="small">Ollama – no cloud calls</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Legal disclaimer</div>
+        </div>
+        <p class="small" style="font-size:13px; line-height:1.7;">
+          This is an <strong>AI research tool</strong>, not a solicitor and not a replacement
+          for legal advice. Always:
+        </p>
+        <ul class="sidebar-list" style="margin-top:10px;">
+          <li>
+            <span>Verify citations</span>
+            <span class="small">Check primary legislation and cases</span>
+          </li>
+          <li>
+            <span>Consult a professional</span>
+            <span class="small">For real disputes or important decisions</span>
+          </li>
+          <li>
+            <span>Check jurisdiction</span>
+            <span class="small">Model focuses on UK law only</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:18px;">
+      <div class="panel-header">
+        <div class="panel-title">Setup checklist</div>
+      </div>
+      <ul class="sidebar-list">
+        <li>
+          <span>Clone/download repository</span>
+          <span class="small">Project on your machine</span>
+        </li>
+        <li>
+          <span>Install Python dependencies</span>
+          <span><code>pip install -r requirements.txt</code></span>
+        </li>
+        <li>
+          <span>Download model file</span>
+          <span class="small">Place <code>UK_Law_Real_Final.gguf</code> in project folder</span>
+        </li>
+        <li>
+          <span>Create Ollama model</span>
+          <span><code>ollama create uk-lawyer -f Modelfile</code></span>
+        </li>
+        <li>
+          <span>Pull embedding model</span>
+          <span><code>ollama pull nomic-embed-text</code></span>
+        </li>
+        <li>
+          <span>Create <code>legal_docs/</code> folder</span>
+          <span class="small">Add PDFs like CRA 2015, Tesco v USDAW 2024</span>
+        </li>
+        <li>
+          <span>Run the GUI</span>
+          <span><code>streamlit run lawyer_gui.py</code></span>
+        </li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

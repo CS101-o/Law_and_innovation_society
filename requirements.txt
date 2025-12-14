@@ -12,3 +12,5 @@ pydub
 speechrecognition
 ffmpeg #brew
 streamlit-mic-recorder
+transformers
+accelerate

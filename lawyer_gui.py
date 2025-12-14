@@ -11,6 +11,8 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from streamlit_mic_recorder import mic_recorder
 
+from refiner import QueryRefiner
+
 from src.tts import text_to_speech_bytes, speech_to_text_from_audio_bytes
 
 # --- CONFIGURATION ---
@@ -32,6 +34,11 @@ def _render_audio_player(audio_bytes: bytes):
 def _handle_read_aloud(idx: int):
     st.session_state.play_audio_idx = idx
 
+@st.cache_resource
+def load_refiner():
+    return QueryRefiner()
+
+refiner = load_refiner()
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="AI UK Lawyer", page_icon="⚖️")
@@ -132,16 +139,34 @@ def process_prompt(prompt_text: str, source: str = "user"):
     with st.chat_message("user"):
         st.markdown(prompt_text)
 
+    
+   
+
     if not rag_chain:
         st.error("System not initialized. Check PDF folder.")
         return
+    
+
+     # Refine the Query
+    refined_text = prompt_text # Default to original if refiner fails
 
     with st.chat_message("assistant"):
+        # Create a status container to show the "thinking" process
+        with st.status("👨‍💼 Receptionist is reviewing...", expanded=False) as status:
+            st.write("Refining query for legal context...")
+            try:
+                refined_text = refiner.refine(prompt_text)
+                st.markdown(f"**Refined Query:** `{refined_text}`")
+                status.update(label="Query Refined", state="complete", expanded=False)
+            except Exception as e:
+                st.error(f"Refinement failed: {e}")
+                status.update(label="Refinement Skipped", state="error")
+
         response_placeholder = st.empty()
-        full_response = ""
+        full_response = ""       
 
         try:
-            for chunk in rag_chain.stream(prompt_text):
+            for chunk in rag_chain.stream(refined_text):
                 full_response += chunk
                 response_placeholder.markdown(full_response + "▌")
 

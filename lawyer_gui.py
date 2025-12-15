@@ -2,20 +2,150 @@ import base64
 import os
 
 import streamlit as st
-from langchain_ollama import ChatOllama, OllamaEmbeddings 
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
-from langchain_core.output_parsers import StrOutputParser
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from streamlit_mic_recorder import mic_recorder
 
-from src.tts import text_to_speech_bytes, speech_to_text_from_audio_bytes
+from src.tts import speech_to_text_from_audio_bytes, text_to_speech_bytes
 
 # --- CONFIGURATION ---
 MODEL_NAME = "uk-lawyer"
 DATA_FOLDER = "./legal_docs"
+
+
+def _apply_custom_theme():
+    """Inject a lightweight theme to make the interface feel more polished."""
+    st.markdown(
+        """
+        <style>
+            :root {
+                --app-bg: #081027;
+                --panel-bg: #fdfefe;
+                --panel-border: rgba(15, 23, 42, 0.08);
+                --accent: #7a6afc;
+                --accent-dark: #4c3dbf;
+                --accent-soft: #eef1ff;
+                --text-primary: #0f172a;
+                --text-muted: #475569;
+                --sunset: linear-gradient(135deg, #f9d976, #f39f86);
+                --sea: linear-gradient(135deg, #7dd3fc, #818cf8);
+            }
+            body {
+                color: var(--text-primary);
+            }
+            .stApp {
+                background: radial-gradient(circle at 15% 10%, rgba(125, 211, 252, 0.25), transparent 45%),
+                            radial-gradient(circle at 80% 0%, rgba(248, 113, 113, 0.2), transparent 40%),
+                            var(--app-bg);
+            }
+            .main .block-container {
+                padding: 2rem 2.5rem 4rem;
+                max-width: 950px;
+                margin-top: 1.25rem;
+                background: var(--panel-bg);
+                border-radius: 30px;
+                box-shadow: 0 25px 70px rgba(6, 12, 24, 0.6);
+                border: 1px solid var(--panel-border);
+            }
+            .stSidebar {
+                background-color: #101522 !important;
+            }
+            .stSidebar p, .stSidebar span, .stSidebar .stCaption {
+                color: #e2e8f0 !important;
+            }
+            [data-testid="stSidebar"] {
+                border-right: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .stSidebar .stMarkdown {
+                color: #e2e8f0;
+            }
+            [data-testid="stChatMessage"] {
+                border-radius: 22px;
+                padding: 1rem 1.2rem;
+                margin-bottom: 1rem;
+                border: 1px solid rgba(148, 163, 184, 0.4);
+                background: white;
+                box-shadow: 0px 12px 24px rgba(15, 23, 42, 0.12);
+            }
+            .assistant-message {
+                background: #f5f7ff;
+                border-radius: 16px;
+                padding: 0.4rem 0.2rem;
+                border-left: 4px solid rgba(99, 102, 241, 0.45);
+                color: var(--text-primary);
+            }
+            .user-message {
+                background: #fff7ed;
+                border-radius: 16px;
+                padding: 0.4rem 0.2rem;
+                border-left: 4px solid rgba(248, 146, 60, 0.55);
+                color: var(--text-primary);
+            }
+            .stButton button {
+                border-radius: 999px;
+                padding: 0.45rem 1.5rem;
+                font-weight: 600;
+            }
+            button[kind="primary"] {
+                background: linear-gradient(135deg, var(--accent), #a855f7) !important;
+                border: none;
+                color: white !important;
+                box-shadow: 0 15px 30px rgba(105, 99, 255, 0.35);
+            }
+            button[kind="secondary"] {
+                background: #101522;
+                border: 1px solid rgba(148, 163, 184, 0.4);
+                color: #f8fafc;
+            }
+            .voice-card {
+                border-radius: 18px;
+                padding: 1.4rem 1.6rem;
+                background: #f9fafb;
+                border: 1px solid rgba(15, 23, 42, 0.08);
+                color: var(--text-muted);
+                margin-bottom: 0.75rem;
+            }
+            .voice-card strong {
+                color: var(--accent-dark);
+                font-size: 1.05rem;
+            }
+            .voice-helper {
+                font-size: 1rem;
+                color: #d7ddeb;
+                margin-top: 0.4rem;
+                display: inline-block;
+                padding-left: 0.55rem;
+            }
+            .voice-helper strong {
+                font-size: 1.02rem;
+                color: #f8fafc;
+            }
+            div[data-testid="stChatInput"] {
+                background: rgba(15, 23, 42, 0.9);
+                border-radius: 16px;
+                padding: 0.2rem 1rem 0.8rem;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            div[data-testid="stChatInput"] textarea {
+                background: transparent;
+                color: #e2e8f0;
+            }
+            div[data-testid="stChatInput"] label {
+                color: #94a3b8;
+            }
+            audio {
+                width: 100%;
+                margin-top: 0.75rem;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_audio_player(audio_bytes: bytes):
@@ -35,7 +165,9 @@ def _handle_read_aloud(idx: int):
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="AI UK Lawyer", page_icon="⚖️")
+_apply_custom_theme()
 st.title("⚖️ AI UK Contract Law Advisor")
+st.caption("Reliable IRAC-style answers with instant voice playback and speech input.")
 
 # --- 1. CACHED RESOURCE LOADING ---
 # We use @st.cache_resource so we only read the PDFs ONCE, not every time you ask a question.
@@ -130,7 +262,7 @@ def process_prompt(prompt_text: str, source: str = "user"):
     """Handle chat submission, model response, and speech rendering."""
     st.session_state.messages.append({"role": "user", "content": prompt_text})
     with st.chat_message("user"):
-        st.markdown(prompt_text)
+        st.markdown(f"<div class='user-message'>{prompt_text}</div>", unsafe_allow_html=True)
 
     if not rag_chain:
         st.error("System not initialized. Check PDF folder.")
@@ -145,61 +277,91 @@ def process_prompt(prompt_text: str, source: str = "user"):
                 full_response += chunk
                 response_placeholder.markdown(full_response + "▌")
 
-            response_placeholder.markdown(full_response)
+            response_placeholder.markdown(
+                f"<div class='assistant-message'>{full_response}</div>",
+                unsafe_allow_html=True,
+            )
             st.session_state.messages.append({"role": "assistant", "content": full_response})
 
             try:
-                audio_bytes = text_to_speech_bytes(full_response)
+                with st.spinner("Generating read-aloud audio..."):
+                    audio_bytes = text_to_speech_bytes(full_response)
                 st.session_state.tts_audio[len(st.session_state.messages) - 1] = audio_bytes
             except Exception as audio_error:
                 st.warning(f"Audio playback unavailable: {audio_error}")
 
         except Exception as e:
             st.error(f"Error: {e}")
+            return
+
+    st.rerun()
 
 
-# Display History
-for idx, message in enumerate(st.session_state.messages):
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-        if message["role"] == "assistant":
-            st.button(
-                "🔊 Read Aloud",
-                key=f"read_{idx}",
-                help="Play this answer with text-to-speech.",
-                on_click=_handle_read_aloud,
-                args=(idx,),
-            )
-            if st.session_state.play_audio_idx == idx:
-                audio_bytes = st.session_state.tts_audio.get(idx)
-                if not audio_bytes:
-                    try:
-                        audio_bytes = text_to_speech_bytes(message["content"])
-                        st.session_state.tts_audio[idx] = audio_bytes
-                    except Exception as audio_error:
-                        st.warning(f"Audio playback unavailable: {audio_error}")
-                        st.session_state.play_audio_idx = None
-                        continue
+def render_history():
+    """Render chat history with Read Aloud controls."""
+    for idx, message in enumerate(st.session_state.messages):
+        with st.chat_message(message["role"]):
+            if message["role"] == "assistant":
+                st.markdown(
+                    f"<div class='assistant-message'>{message['content']}</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f"<div class='user-message'>{message['content']}</div>",
+                    unsafe_allow_html=True,
+                )
 
-                _render_audio_player(audio_bytes)
-                st.session_state.play_audio_idx = None
+            if message["role"] == "assistant":
+                st.button(
+                    "🔊 Read Aloud",
+                    key=f"read_{idx}",
+                    help="Play this answer with text-to-speech.",
+                    on_click=_handle_read_aloud,
+                    args=(idx,),
+                    type="primary",
+                    use_container_width=False,
+                )
+                if st.session_state.play_audio_idx == idx:
+                    audio_bytes = st.session_state.tts_audio.get(idx)
+                    if not audio_bytes:
+                        try:
+                            audio_bytes = text_to_speech_bytes(message["content"])
+                            st.session_state.tts_audio[idx] = audio_bytes
+                        except Exception as audio_error:
+                            st.warning(f"Audio playback unavailable: {audio_error}")
+                            st.session_state.play_audio_idx = None
+                            continue
 
+                    _render_audio_player(audio_bytes)
+                    st.session_state.play_audio_idx = None
+
+
+with st.container():
+    render_history()
 
 st.divider()
 st.subheader("🎙️ Ask with Your Voice")
-voice_col, hint_col = st.columns([3, 2])
-with hint_col:
-    st.caption("Use the mic to record a question instead of typing.")
-
-with voice_col:
-    audio_data = mic_recorder(
-        start_prompt="Start recording",
-        stop_prompt="Stop recording",
-        just_once=True,
-        use_container_width=True,
-        format="wav",
-        key="ai_lawyer_mic",
+with st.container():
+    st.markdown(
+        "<div class='voice-card'><strong>Hands-free mode</strong><br/>Capture any query in seconds and we'll transcribe it into the chat.</div>",
+        unsafe_allow_html=True,
     )
+    voice_col, hint_col = st.columns([3, 2], gap="large")
+    with voice_col:
+        audio_data = mic_recorder(
+            start_prompt="🎙️ Start recording",
+            stop_prompt="✅ Stop & transcribe",
+            just_once=True,
+            use_container_width=True,
+            format="wav",
+            key="ai_lawyer_mic",
+        )
+    with hint_col:
+        st.markdown(
+            "<span class='voice-helper'><strong>How it works:</strong> Hold the mic button, speak naturally, then release to send the transcript into the chat.</span>",
+            unsafe_allow_html=True,
+        )
 
 if audio_data and audio_data.get("bytes"):
     st.audio(audio_data["bytes"], format=f"audio/{audio_data.get('format', 'wav')}")

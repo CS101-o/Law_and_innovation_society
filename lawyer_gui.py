@@ -93,6 +93,13 @@ def _warm_llm(llm: ChatOllama):
         pass
 
 
+def _maybe_persist_vectorstore(vectorstore):
+    """Persist the vectorstore if the backend exposes a persist method."""
+    persist_fn = getattr(vectorstore, "persist", None)
+    if callable(persist_fn):
+        persist_fn()
+
+
 def _apply_custom_theme():
     """Inject a lightweight theme to make the interface feel more polished."""
     st.markdown(
@@ -329,7 +336,7 @@ def load_rag_system(mode: str):
             collection_name=CHROMA_COLLECTION,
             persist_directory=VECTOR_DB_DIR,
         )
-        vectorstore.persist()
+        _maybe_persist_vectorstore(vectorstore)
         _persist_vector_metadata(pdf_state)
         status_message = "✅ Indexed PDFs, cached embeddings, and labeled document categories."
     else:

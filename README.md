@@ -33,7 +33,7 @@ streamlit run app/lawyer_gui.py
 
 ## 📂 Legal Documents
 
-Your PDFs should be organized in `legal_docs/` by legal domain:
+PDFs should be organized in `legal_docs/` by legal domain:
 ```
 legal_docs/
 ├── Misrepresentation/
@@ -51,14 +51,13 @@ legal_docs/
     └── Mistake.pdf
 ```
 
-**Current Setup:** You have 8 PDFs already organized and ready to use!
-
 ## Troubleshooting
 
 If you see "No PDFs found" after adding files:
 1. Make sure folder names don't have trailing spaces
 2. Stop and restart Streamlit: `Ctrl+C` then `streamlit run app/lawyer_gui.py` again
 3. Click "Rebuild Graph" button in the sidebar to force re-indexing
+4. Remove the Chache and try again
 
 ## Disclaimer
 

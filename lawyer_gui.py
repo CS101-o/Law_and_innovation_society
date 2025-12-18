@@ -6,12 +6,17 @@ import streamlit as st
 from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from streamlit_mic_recorder import mic_recorder
 
+from src.pdf_classifier import (
+    classify_pdf_documents,
+    format_category_list,
+    guess_question_categories,
+)
 from src.tts import speech_to_text_from_audio_bytes, text_to_speech_bytes
 from src.waiting_music import get_waiting_tune_bytes
 
@@ -274,6 +279,7 @@ def load_rag_system(mode: str):
         created_data_folder = True
 
     pdf_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".pdf")]
+    file_catalog = {file: {"categories": ["general"]} for file in pdf_files}
 
     if mode == "demo":
         status_message = "🧪 Demo mode: lightweight mock answers ({} PDF(s) detected).".format(
@@ -281,7 +287,7 @@ def load_rag_system(mode: str):
         )
         if created_data_folder and not pdf_files:
             status_message += " Add PDFs to exit demo later."
-        return DemoChain(pdf_files), pdf_files, status_message
+        return DemoChain(pdf_files), file_catalog, status_message
 
     if not pdf_files:
         if created_data_folder:
@@ -303,12 +309,15 @@ def load_rag_system(mode: str):
 
     needs_reindex = stored_state != pdf_state
 
-    if needs_reindex:
-        docs = []
-        for file in pdf_files:
-            loader = PyPDFLoader(os.path.join(DATA_FOLDER, file))
-            docs.extend(loader.load())
+    docs = []
+    for file in pdf_files:
+        loader = PyPDFLoader(os.path.join(DATA_FOLDER, file))
+        file_docs = loader.load()
+        categories = classify_pdf_documents(file_docs, source=file)
+        file_catalog[file] = {"categories": categories}
+        docs.extend(file_docs)
 
+    if needs_reindex:
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=CHUNK_SIZE,
             chunk_overlap=CHUNK_OVERLAP,
@@ -322,16 +331,30 @@ def load_rag_system(mode: str):
         )
         vectorstore.persist()
         _persist_vector_metadata(pdf_state)
-        status_message = "✅ Indexed PDFs and cached embeddings."
+        status_message = "✅ Indexed PDFs, cached embeddings, and labeled document categories."
     else:
         vectorstore = Chroma(
             persist_directory=VECTOR_DB_DIR,
             embedding_function=embeddings,
             collection_name=CHROMA_COLLECTION,
         )
-        status_message = "✅ Loaded cached embeddings."
+        status_message = "✅ Loaded cached embeddings with stored document categories."
 
-    retriever = vectorstore.as_retriever()
+    def _fetch_relevant_docs(question: str):
+        categories = guess_question_categories(question or "")
+        filter_kwargs = {}
+        if categories:
+            filter_kwargs["category"] = {"$in": categories}
+        docs = vectorstore.similarity_search(
+            question,
+            k=4,
+            filter=filter_kwargs or None,
+        )
+        if not docs and categories:
+            docs = vectorstore.similarity_search(question, k=4)
+        return docs
+
+    context_retriever = RunnableLambda(_fetch_relevant_docs)
 
     # D. Define Prompt
     template = """<|start_header_id|>system<|end_header_id|>
@@ -356,13 +379,13 @@ def load_rag_system(mode: str):
 
     # E. Build Chain
     rag_chain = (
-        {"context": retriever, "question": RunnablePassthrough()}
+        {"context": context_retriever, "question": RunnablePassthrough()}
         | prompt
         | llm
         | StrOutputParser()
     )
     
-    return rag_chain, pdf_files, status_message
+    return rag_chain, file_catalog, status_message
 
 # --- 2. INITIALIZATION ---
 rag_chain, loaded_files, status_msg = load_rag_system(runtime_mode)
@@ -371,8 +394,12 @@ rag_chain, loaded_files, status_msg = load_rag_system(runtime_mode)
 with st.sidebar:
     st.header("📂 Case Files")
     if loaded_files:
-        for f in loaded_files:
-            st.text(f"📄 {f}")
+        for filename, info in loaded_files.items():
+            categories_display = format_category_list(info.get("categories", []))
+            if categories_display:
+                st.text(f"📄 {filename} [{categories_display}]")
+            else:
+                st.text(f"📄 {filename}")
     else:
         st.warning("No PDFs loaded.")
     st.divider()

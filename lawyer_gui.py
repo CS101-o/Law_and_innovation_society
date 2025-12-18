@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 
 import streamlit as st
@@ -12,10 +13,79 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from streamlit_mic_recorder import mic_recorder
 
 from src.tts import speech_to_text_from_audio_bytes, text_to_speech_bytes
+from src.waiting_music import get_waiting_tune_bytes
 
 # --- CONFIGURATION ---
 MODEL_NAME = "uk-lawyer"
 DATA_FOLDER = "./legal_docs"
+VECTOR_DB_DIR = "./chroma_db"
+VECTOR_METADATA_PATH = os.path.join(VECTOR_DB_DIR, "index_metadata.json")
+CHROMA_COLLECTION = "uk_law_gui"
+
+CHUNK_SIZE = 1100
+CHUNK_OVERLAP = 120
+
+RUNTIME_MODE_OPTIONS = [
+    ("Full RAG (Ollama)", "full"),
+    ("Demo (no Ollama)", "demo"),
+]
+MODE_LOOKUP = {label: value for label, value in RUNTIME_MODE_OPTIONS}
+VALUE_TO_LABEL = {value: label for label, value in RUNTIME_MODE_OPTIONS}
+DEFAULT_RUNTIME_MODE = os.environ.get("AI_LAWYER_MODE", "full").lower()
+DEFAULT_RUNTIME_LABEL = VALUE_TO_LABEL.get(
+    DEFAULT_RUNTIME_MODE, RUNTIME_MODE_OPTIONS[0][0]
+)
+
+
+class DemoChain:
+    """Ultra-light responder so the UI can be tested without heavy local models."""
+
+    def __init__(self, pdf_files):
+        self._pdf_files = pdf_files or []
+
+    def stream(self, question: str):
+        docs_hint = ", ".join(self._pdf_files[:2]) if self._pdf_files else "demo references"
+        answer = f"""IRAC Demo Response
+
+Issue: {question or "General consumer law query"}.
+Rule: Rely on CRA 2015 (Goods s.9-24, Services s.49, Digital s.34-44). Note negligence cannot be excluded (s.65).
+Application: Without the full RAG system we use cached demo materials ({docs_hint}) to outline the reasoning only.
+Conclusion: Provide a concise recommendation and advise the user to verify against the real PDFs when Full RAG mode is enabled."""
+        yield answer
+
+
+def _load_vector_metadata():
+    try:
+        with open(VECTOR_METADATA_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def _persist_vector_metadata(metadata: dict):
+    os.makedirs(VECTOR_DB_DIR, exist_ok=True)
+    with open(VECTOR_METADATA_PATH, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2)
+
+
+def _collect_pdf_state(pdf_files):
+    state = {}
+    for file in pdf_files:
+        path = os.path.join(DATA_FOLDER, file)
+        try:
+            state[file] = os.path.getmtime(path)
+        except FileNotFoundError:
+            continue
+    return state
+
+
+def _warm_llm(llm: ChatOllama):
+    """Send a light ping so Ollama keeps the model loaded."""
+    try:
+        llm.invoke("ping")
+    except Exception:
+        # If warmup fails we simply proceed—the main request will try again.
+        pass
 
 
 def _apply_custom_theme():
@@ -159,6 +229,19 @@ def _render_audio_player(audio_bytes: bytes):
     st.markdown(audio_html, unsafe_allow_html=True)
 
 
+def _render_waiting_tune(placeholder):
+    """Display a looping audio element used while the model is thinking."""
+    audio_b64 = base64.b64encode(get_waiting_tune_bytes()).decode("utf-8")
+    placeholder.markdown(
+        f"""
+        <audio autoplay loop controls style="width: 100%;">
+            <source src="data:audio/wav;base64,{audio_b64}" type="audio/wav">
+        </audio>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _handle_read_aloud(idx: int):
     st.session_state.play_audio_idx = idx
 
@@ -169,37 +252,85 @@ _apply_custom_theme()
 st.title("⚖️ AI UK Contract Law Advisor")
 st.caption("Reliable IRAC-style answers with instant voice playback and speech input.")
 
-# --- 1. CACHED RESOURCE LOADING ---
-# We use @st.cache_resource so we only read the PDFs ONCE, not every time you ask a question.
-@st.cache_resource
-def load_rag_system():
+if "runtime_mode_label" not in st.session_state:
+    st.session_state.runtime_mode_label = DEFAULT_RUNTIME_LABEL
+
+with st.sidebar:
+    st.subheader("⚙️ Runtime")
+    selected_label = st.selectbox(
+        "Choose mode",
+        [label for label, _ in RUNTIME_MODE_OPTIONS],
+        key="runtime_mode_label",
+        help="Demo mode skips Ollama and embeddings so you can test UI features quietly.",
+    )
+runtime_mode = MODE_LOOKUP[selected_label]
+
+
+# --- 1. RESOURCE LOADING ---
+def load_rag_system(mode: str):
+    created_data_folder = False
+    if not os.path.exists(DATA_FOLDER):
+        os.makedirs(DATA_FOLDER)
+        created_data_folder = True
+
+    pdf_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".pdf")]
+
+    if mode == "demo":
+        status_message = "🧪 Demo mode: lightweight mock answers ({} PDF(s) detected).".format(
+            len(pdf_files)
+        )
+        if created_data_folder and not pdf_files:
+            status_message += " Add PDFs to exit demo later."
+        return DemoChain(pdf_files), pdf_files, status_message
+
+    if not pdf_files:
+        if created_data_folder:
+            return None, None, "⚠️ Data folder created. Please add PDFs."
+        return None, None, "❌ No PDFs found. Add files to 'legal_docs'."
+
     # A. Setup Embeddings & Model
     embeddings = OllamaEmbeddings(model="nomic-embed-text")
     llm = ChatOllama(
-        model=MODEL_NAME, 
-        temperature=0.1, 
+        model=MODEL_NAME,
+        temperature=0.1,
         num_ctx=8192,
-        stop=["<|eot_id|>", "<|start_header_id|>", "📝", "Client Scenario:", "User:", "----------------"]
+        stop=["<|eot_id|>", "<|start_header_id|>", "📝", "Client Scenario:", "User:", "----------------"],
     )
+    _warm_llm(llm)
 
-    # B. Load Documents
-    if not os.path.exists(DATA_FOLDER):
-        os.makedirs(DATA_FOLDER)
-        return None, None, "⚠️ Data folder created. Please add PDFs."
+    pdf_state = _collect_pdf_state(pdf_files)
+    stored_state = _load_vector_metadata()
 
-    pdf_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith('.pdf')]
-    if not pdf_files:
-        return None, None, "❌ No PDFs found. Add files to 'legal_docs'."
+    needs_reindex = stored_state != pdf_state
 
-    docs = []
-    for file in pdf_files:
-        loader = PyPDFLoader(os.path.join(DATA_FOLDER, file))
-        docs.extend(loader.load())
+    if needs_reindex:
+        docs = []
+        for file in pdf_files:
+            loader = PyPDFLoader(os.path.join(DATA_FOLDER, file))
+            docs.extend(loader.load())
 
-    # C. Build Database
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    splits = text_splitter.split_documents(docs)
-    vectorstore = Chroma.from_documents(documents=splits, embedding=embeddings, collection_name="uk_law_gui")
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=CHUNK_SIZE,
+            chunk_overlap=CHUNK_OVERLAP,
+        )
+        splits = text_splitter.split_documents(docs)
+        vectorstore = Chroma.from_documents(
+            documents=splits,
+            embedding=embeddings,
+            collection_name=CHROMA_COLLECTION,
+            persist_directory=VECTOR_DB_DIR,
+        )
+        vectorstore.persist()
+        _persist_vector_metadata(pdf_state)
+        status_message = "✅ Indexed PDFs and cached embeddings."
+    else:
+        vectorstore = Chroma(
+            persist_directory=VECTOR_DB_DIR,
+            embedding_function=embeddings,
+            collection_name=CHROMA_COLLECTION,
+        )
+        status_message = "✅ Loaded cached embeddings."
+
     retriever = vectorstore.as_retriever()
 
     # D. Define Prompt
@@ -231,10 +362,10 @@ def load_rag_system():
         | StrOutputParser()
     )
     
-    return rag_chain, pdf_files, "✅ System Ready"
+    return rag_chain, pdf_files, status_message
 
 # --- 2. INITIALIZATION ---
-rag_chain, loaded_files, status_msg = load_rag_system()
+rag_chain, loaded_files, status_msg = load_rag_system(runtime_mode)
 
 # Sidebar Info
 with st.sidebar:
@@ -270,6 +401,10 @@ def process_prompt(prompt_text: str, source: str = "user"):
 
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
+        waiting_audio_placeholder = st.empty()
+        waiting_note_placeholder = st.empty()
+        _render_waiting_tune(waiting_audio_placeholder)
+        waiting_note_placeholder.caption("🎵 Holding music while we craft your answer...")
         full_response = ""
 
         try:
@@ -293,6 +428,9 @@ def process_prompt(prompt_text: str, source: str = "user"):
         except Exception as e:
             st.error(f"Error: {e}")
             return
+        finally:
+            waiting_audio_placeholder.empty()
+            waiting_note_placeholder.empty()
 
     st.rerun()
 

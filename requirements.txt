@@ -14,3 +14,5 @@ ffmpeg #brew
 streamlit-mic-recorder
 transformers
 accelerate
+networkx
+matplotlib

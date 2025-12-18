@@ -1,6 +1,7 @@
 import os
 import sys
-# Updated import to fix the warning you saw earlier
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from langchain_ollama import ChatOllama, OllamaEmbeddings 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter

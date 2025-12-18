@@ -1,6 +1,9 @@
 import base64
 import json
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import streamlit as st
 from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
@@ -11,9 +14,9 @@ from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from streamlit_mic_recorder import mic_recorder
 
-from graph_builder import LegalKnowledgeGraph
-from hybrid_retriever import HybridGraphRetriever
-from refiner import QueryRefiner
+from core.graph_builder import LegalKnowledgeGraph
+from core.hybrid_retriever import HybridGraphRetriever
+from core.refiner import QueryRefiner
 
 from src.pdf_classifier import (
     classify_pdf_documents,
@@ -212,53 +215,72 @@ def load_rag_system(mode: str):
     if not os.path.exists(DATA_FOLDER):
         os.makedirs(DATA_FOLDER)
 
-    pdf_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".pdf")]
+    pdf_files = []
+    for root, dirs, files in os.walk(DATA_FOLDER):
+        for file in files:
+            if file.endswith(".pdf"):
+                rel_path = os.path.relpath(os.path.join(root, file), DATA_FOLDER)
+                pdf_files.append(rel_path)
+
     file_catalog = {file: {"categories": ["general"]} for file in pdf_files}
 
     if mode == "demo":
-        return DemoChain(pdf_files), None, file_catalog, "Running in demo mode."
+        return DemoChain(pdf_files), None, file_catalog, f"Demo mode. Found {len(pdf_files)} PDFs."
 
     if not pdf_files:
-        return None, None, None, "No PDFs found in legal_docs."
+        return None, None, None, "No PDFs found in legal_docs or subfolders."
 
-    embeddings = OllamaEmbeddings(model="nomic-embed-text")
-    llm = ChatOllama(model=MODEL_NAME, temperature=0.1, num_ctx=8192)
-    _warm_llm(llm)
+    try:
+        embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        llm = ChatOllama(model=MODEL_NAME, temperature=0.1, num_ctx=8192)
+        _warm_llm(llm)
+    except Exception as e:
+        return None, None, file_catalog, f"Failed to initialize LLM/embeddings: {str(e)}"
 
-    pdf_state = _collect_pdf_state(pdf_files)
-    stored_state = _load_vector_metadata()
-    needs_reindex = stored_state != pdf_state
+    try:
+        pdf_state = _collect_pdf_state(pdf_files)
+        stored_state = _load_vector_metadata()
+        needs_reindex = stored_state != pdf_state
 
-    docs = []
-    for file in pdf_files:
-        loader = PyPDFLoader(os.path.join(DATA_FOLDER, file))
-        file_docs = loader.load()
-        categories = classify_pdf_documents(file_docs, source=file)
-        file_catalog[file] = {"categories": categories}
-        docs.extend(file_docs)
+        docs = []
+        for rel_file_path in pdf_files:
+            abs_path = os.path.join(DATA_FOLDER, rel_file_path)
+            loader = PyPDFLoader(abs_path)
+            file_docs = loader.load()
 
-    if needs_reindex:
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
-        splits = text_splitter.split_documents(docs)
-        vectorstore = Chroma.from_documents(
-            documents=splits,
-            embedding=embeddings,
-            collection_name=CHROMA_COLLECTION,
-            persist_directory=VECTOR_DB_DIR,
-        )
-        _maybe_persist_vectorstore(vectorstore)
-        _persist_vector_metadata(pdf_state)
-        status_message = "Indexed new documents."
-    else:
-        vectorstore = Chroma(
-            persist_directory=VECTOR_DB_DIR,
-            embedding_function=embeddings,
-            collection_name=CHROMA_COLLECTION,
-        )
-        status_message = "Loaded index from cache."
+            folder_name = os.path.dirname(rel_file_path)
+            if folder_name:
+                for doc in file_docs:
+                    doc.metadata["domain"] = os.path.basename(folder_name)
 
-    knowledge_graph = load_knowledge_graph()
-    return vectorstore, knowledge_graph, file_catalog, status_message
+            categories = classify_pdf_documents(file_docs, source=rel_file_path)
+            file_catalog[rel_file_path] = {"categories": categories}
+            docs.extend(file_docs)
+
+        if needs_reindex:
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+            splits = text_splitter.split_documents(docs)
+            vectorstore = Chroma.from_documents(
+                documents=splits,
+                embedding=embeddings,
+                collection_name=CHROMA_COLLECTION,
+                persist_directory=VECTOR_DB_DIR,
+            )
+            _maybe_persist_vectorstore(vectorstore)
+            _persist_vector_metadata(pdf_state)
+            status_message = "Indexed new documents."
+        else:
+            vectorstore = Chroma(
+                persist_directory=VECTOR_DB_DIR,
+                embedding_function=embeddings,
+                collection_name=CHROMA_COLLECTION,
+            )
+            status_message = "Loaded index from cache."
+
+        knowledge_graph = load_knowledge_graph()
+        return vectorstore, knowledge_graph, file_catalog, status_message
+    except Exception as e:
+        return None, None, file_catalog, f"Error loading RAG system: {str(e)}"
 
 vectorstore, knowledge_graph, loaded_files, status_msg = load_rag_system(runtime_mode)
 
@@ -293,7 +315,7 @@ if "pending_voice_prompt" not in st.session_state:
 
 def process_prompt(prompt_text: str):
     st.session_state.messages.append({"role": "user", "content": prompt_text})
-    
+
     with st.chat_message("user"):
         st.markdown(f"<div class='user-message'>{prompt_text}</div>", unsafe_allow_html=True)
 
@@ -309,52 +331,94 @@ def process_prompt(prompt_text: str):
         return
 
     if not vectorstore or not knowledge_graph:
-        st.error("System not ready.")
+        st.error(f"System not ready: {status_msg}")
         return
-    
+
     if is_out_of_scope(prompt_text):
         with st.chat_message("assistant"):
             msg = get_welcome_message()
             st.markdown(msg)
             st.session_state.messages.append({"role": "assistant", "content": msg})
         return
-    
-    refined_text = prompt_text 
+
+    refined_text = prompt_text
     domain_tags = ["General"]
-    
+
     with st.chat_message("assistant"):
-        with st.status("Analyzing Legal Context...", expanded=False) as status:
+        with st.status("Analyzing Legal Context...", expanded=True) as status:
             try:
+                st.write("Step 1: Classifying legal domain...")
                 domain_tags, refined_text = refiner.refine(prompt_text)
+
+                st.write("Step 2: Identifying content type...")
                 content_categories = guess_question_categories(prompt_text)
-                status.update(label="Context identified", state="complete")
-            except Exception:
+                content_display = format_category_list(content_categories)
+
+                if content_display:
+                    st.markdown(f"**Content Type:** `{content_display}`")
+                st.markdown(f"**Legal Domain:** {', '.join([f'`{d}`' for d in domain_tags])}")
+                st.markdown(f"**Refined Query:** `{refined_text}`")
+
+                status.update(label="Context identified", state="complete", expanded=False)
+            except Exception as e:
+                st.error(f"Classification failed: {str(e)}")
                 status.update(label="Analysis Error", state="error")
-        
-        hybrid_retriever = HybridGraphRetriever(vectorstore, knowledge_graph)
-        domain_str = domain_tags[0] if domain_tags else "General"
-        retrieved_docs = hybrid_retriever.get_relevant_documents(refined_text, domain=domain_str, k=4)
-        
-        graph_context = ""
-        if retrieved_docs and "graph_context" in retrieved_docs[0].metadata:
-            graph_context = retrieved_docs[0].metadata["graph_context"]
-        
+                return
+
+        try:
+            st.write("Retrieving with GraphRAG...")
+            hybrid_retriever = HybridGraphRetriever(vectorstore, knowledge_graph)
+            domain_str = domain_tags[0] if domain_tags else "General"
+            retrieved_docs = hybrid_retriever.get_relevant_documents(refined_text, domain=domain_str, k=4)
+
+            st.write(f"Retrieved {len(retrieved_docs)} documents")
+
+            graph_context = ""
+            for doc in retrieved_docs:
+                if "graph_context" in doc.metadata:
+                    graph_context = doc.metadata["graph_context"]
+                    break
+
+            if graph_context:
+                with st.expander("Knowledge Graph Context"):
+                    st.markdown(graph_context)
+            else:
+                st.caption("No graph relationships found for this query")
+
+        except Exception as e:
+            st.error(f"GraphRAG retrieval failed: {str(e)}")
+            return
+
         llm_engine = ChatOllama(model=MODEL_NAME, temperature=0.1)
+        domains_str = ", ".join(domain_tags)
         prompt_template = ChatPromptTemplate.from_template(
-            "System: Expert UK Contract Law consultant. Use IRAC. Context: {context} Graph: {graph} User: {question}"
+            f"""You are an expert UK Contract Law consultant specializing in {domains_str}.
+
+Use IRAC method (Issue, Rule, Analysis, Conclusion).
+Cite cases with [Year] citations.
+
+RETRIEVED CONTEXT: {{context}}
+
+KNOWLEDGE GRAPH: {{graph}}
+
+User Query: {{question}}"""
         )
-        
+
         rag_chain = (
-            {"context": lambda x: "\n\n".join([d.page_content for d in retrieved_docs]), 
-             "graph": lambda x: graph_context,
-             "question": RunnablePassthrough()}
-            | prompt_template | llm_engine | StrOutputParser()
+            {
+                "context": lambda x: "\n\n".join([d.page_content for d in retrieved_docs]),
+                "graph": lambda x: graph_context if graph_context else "No graph relationships found",
+                "question": RunnablePassthrough()
+            }
+            | prompt_template
+            | llm_engine
+            | StrOutputParser()
         )
-        
+
         response_placeholder = st.empty()
         waiting_audio = st.empty()
         _render_waiting_tune(waiting_audio)
-        
+
         full_response = ""
         try:
             for chunk in rag_chain.stream(refined_text):
@@ -363,15 +427,15 @@ def process_prompt(prompt_text: str):
 
             response_placeholder.markdown(f"<div class='assistant-message'>{full_response}</div>", unsafe_allow_html=True)
             st.session_state.messages.append({"role": "assistant", "content": full_response})
-            
+
             try:
                 audio_bytes = text_to_speech_bytes(full_response)
                 st.session_state.tts_audio[len(st.session_state.messages) - 1] = audio_bytes
             except Exception:
                 pass
-                
+
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Response generation error: {e}")
         finally:
             waiting_audio.empty()
 

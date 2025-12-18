@@ -3,7 +3,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from langchain_ollama import OllamaEmbeddings
 
 # CONFIG
-GEN_MODEL_ID = "Qwen/Qwen2.5-0.5B-Instruct"
+GEN_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
 EMBED_MODEL = "nomic-embed-text"
 
 class QueryRefiner:

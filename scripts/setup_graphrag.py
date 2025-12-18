@@ -4,8 +4,11 @@ Setup script for GraphRAG Legal System
 Builds the knowledge graph from your legal PDFs
 """
 
-from graph_builder import LegalKnowledgeGraph
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from core.graph_builder import LegalKnowledgeGraph
 
 def main():
     print("="*80)

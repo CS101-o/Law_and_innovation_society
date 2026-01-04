@@ -39,27 +39,42 @@ def _ensure_wav_bytes(audio_bytes: bytes, fmt: str) -> bytes:
 
 def speech_to_text_from_audio_bytes(audio_bytes: bytes, fmt: str = "wav") -> Optional[str]:
     """Transcribe uploaded audio bytes using Google's recognizer."""
-    fmt = (fmt or "wav").lower()
-    safe_formats = {"wav", "x-wav", "aiff", "aifc", "flac"}
-    wav_bytes = audio_bytes
+    if not audio_bytes or len(audio_bytes) == 0:
+        return None
 
-    if fmt not in safe_formats:
-        try:
-            wav_bytes = _ensure_wav_bytes(audio_bytes, fmt)
-            fmt = "wav"
-        except Exception:
-            return None
+    fmt = (fmt or "wav").lower()
+
+    # Try to ensure it's WAV format
+    try:
+        if fmt not in {"wav", "x-wav"}:
+            audio_bytes = _ensure_wav_bytes(audio_bytes, fmt)
+    except Exception as e:
+        print(f"Format conversion error: {e}")
+        # Continue anyway with original bytes
+        pass
 
     recognizer = sr.Recognizer()
-    audio_file = BytesIO(wav_bytes)
-    with sr.AudioFile(audio_file) as source:
-        audio = recognizer.record(source)
 
     try:
-        return recognizer.recognize_google(audio)
+        # Load audio file from bytes
+        audio_file = BytesIO(audio_bytes)
+        with sr.AudioFile(audio_file) as source:
+            # Recognize speech from the audio
+            audio = recognizer.record(source)
+
+        # Try to transcribe
+        text = recognizer.recognize_google(audio)
+        print(f"✓ Transcribed: {text}")
+        return text
+
     except sr.UnknownValueError:
+        print("⚠ Audio could not be understood by Google Speech Recognition")
         return None
-    except sr.RequestError:
+    except sr.RequestError as e:
+        print(f"⚠ Google Speech Recognition API error: {e}")
+        return None
+    except Exception as e:
+        print(f"⚠ Unexpected error during transcription: {e}")
         return None
 
 

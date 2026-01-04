@@ -550,10 +550,22 @@ with col_mic:
     st.markdown('</div>', unsafe_allow_html=True)
 
     if audio_data and audio_data.get("bytes"):
-        with st.spinner("Transcribing..."):
-            transcript = speech_to_text_from_audio_bytes(audio_data["bytes"], fmt=audio_data.get("format", "wav"))
-            if transcript:
-                st.session_state.pending_voice_prompt = transcript
+        try:
+            with st.spinner("🎙️ Transcribing audio..."):
+                audio_format = audio_data.get("format", "wav")
+                audio_bytes = audio_data.get("bytes")
+
+                if audio_format and audio_bytes:
+                    transcript = speech_to_text_from_audio_bytes(audio_bytes, fmt=audio_format)
+                    if transcript and transcript.strip():
+                        st.session_state.pending_voice_prompt = transcript
+                        st.success(f"✓ Heard: {transcript[:60]}..." if len(transcript) > 60 else f"✓ Heard: {transcript}")
+                    else:
+                        st.warning("⚠️ Could not understand audio. Please try again or type your question.")
+                else:
+                    st.warning("⚠️ No audio data received.")
+        except Exception as e:
+            st.error(f"❌ Transcription error: {str(e)}")
 
 st.markdown('</div></div>', unsafe_allow_html=True)
 

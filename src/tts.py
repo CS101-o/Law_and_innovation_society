@@ -42,16 +42,20 @@ def speech_to_text_from_audio_bytes(audio_bytes: bytes, fmt: str = "wav") -> Opt
     if not audio_bytes or len(audio_bytes) == 0:
         return None
 
-    fmt = (fmt or "wav").lower()
+    fmt = (fmt or "webm").lower()
 
-    # Try to ensure it's WAV format
+    # Always convert to WAV format for speech_recognition compatibility
     try:
         if fmt not in {"wav", "x-wav"}:
             audio_bytes = _ensure_wav_bytes(audio_bytes, fmt)
     except Exception as e:
         print(f"Format conversion error: {e}")
-        # Continue anyway with original bytes
-        pass
+        # If conversion fails, try with webm as fallback
+        try:
+            audio_bytes = _ensure_wav_bytes(audio_bytes, "webm")
+        except Exception as e2:
+            print(f"WebM fallback failed: {e2}")
+            return None
 
     recognizer = sr.Recognizer()
 
@@ -75,6 +79,8 @@ def speech_to_text_from_audio_bytes(audio_bytes: bytes, fmt: str = "wav") -> Opt
         return None
     except Exception as e:
         print(f"⚠ Unexpected error during transcription: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 

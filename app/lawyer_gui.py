@@ -551,9 +551,11 @@ with col_mic:
 
 if audio_data and audio_data.get("bytes"):
     with st.spinner("Transcribing voice input..."):
+        # mic_recorder returns webm format by default
+        audio_format = audio_data.get("format", "webm")
         transcript = speech_to_text_from_audio_bytes(
             audio_data["bytes"],
-            fmt=audio_data.get("format", "wav"),
+            fmt=audio_format,
         )
     if transcript:
         st.success(f"Transcribed question: {transcript}")

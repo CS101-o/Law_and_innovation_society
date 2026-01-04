@@ -8,7 +8,7 @@ import streamlit as st
 from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+from langchain_core.runnables import RunnablePassthrough
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -49,20 +49,25 @@ DEFAULT_RUNTIME_LABEL = VALUE_TO_LABEL.get(
     DEFAULT_RUNTIME_MODE, RUNTIME_MODE_OPTIONS[0][0]
 )
 
+# --- HELPER CLASSES ---
 class DemoChain:
     def __init__(self, pdf_files):
         self._pdf_files = pdf_files or []
 
     def stream(self, question: str):
         docs_hint = ", ".join(self._pdf_files[:2]) if self._pdf_files else "demo references"
-        answer = f"""IRAC Demo Response
+        answer = f"""**IRAC Demo Response**
 
-Issue: {question or "General consumer law query"}.
-Rule: Rely on CRA 2015 (Goods s.9-24, Services s.49, Digital s.34-44). Note negligence cannot be excluded (s.65).
-Application: Using cached demo materials ({docs_hint}) to outline reasoning.
-Conclusion: Recommendation provided. Verify against real documents in Full RAG mode."""
+**Issue:** {question or "General contract law query"}.
+
+**Rule:** Rely on common law principles and statutory protections. Contract law governs the formation, interpretation, and enforcement of agreements.
+
+**Application:** Using cached demo materials ({docs_hint}) to outline reasoning.
+
+**Conclusion:** Recommendation provided. Verify against real documents in Full RAG mode."""
         yield answer
 
+# --- HELPER FUNCTIONS ---
 def _load_vector_metadata():
     try:
         with open(VECTOR_METADATA_PATH, "r", encoding="utf-8") as f:
@@ -96,47 +101,9 @@ def _maybe_persist_vectorstore(vectorstore):
     if callable(persist_fn):
         persist_fn()
 
-def _apply_custom_theme():
-    st.markdown(
-        """
-        <style>
-            :root {
-                --app-bg: #081027;
-                --panel-bg: #fdfefe;
-                --panel-border: rgba(15, 23, 42, 0.08);
-                --accent: #7a6afc;
-                --accent-dark: #4c3dbf;
-                --text-primary: #0f172a;
-            }
-            .stApp {
-                background: var(--app-bg);
-            }
-            .main .block-container {
-                padding: 2rem;
-                max-width: 950px;
-                background: var(--panel-bg);
-                border-radius: 20px;
-            }
-            .assistant-message {
-                background: #f5f7ff;
-                border-radius: 12px;
-                padding: 1rem;
-                border-left: 4px solid var(--accent);
-            }
-            .user-message {
-                background: #fff7ed;
-                border-radius: 12px;
-                padding: 1rem;
-                border-left: 4px solid #f8923c;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
 def _render_audio_player(audio_bytes: bytes):
     audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-    audio_html = f'<audio autoplay controls><source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3"></audio>'
+    audio_html = f'<audio autoplay controls style="width: 100%; margin: 1rem 0;"><source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3"></audio>'
     st.markdown(audio_html, unsafe_allow_html=True)
 
 def _render_waiting_tune(placeholder):
@@ -149,6 +116,195 @@ def _render_waiting_tune(placeholder):
 def _handle_read_aloud(idx: int):
     st.session_state.play_audio_idx = idx
 
+# --- PAGE CONFIG ---
+st.set_page_config(
+    page_title="UK Contract Law Advisor",
+    page_icon="⚖️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- THEME STYLING ---
+def apply_theme():
+    st.markdown("""
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+
+            :root {
+                --sidebar-bg: #4a5a6a;
+                --main-bg: #5a6d7e;
+                --chat-bg: #f5f5f5;
+                --text-dark: #2c3e50;
+                --text-light: #ffffff;
+                --text-muted: #ffffff99;
+                --accent: #2c3e50;
+                --border: #00000020;
+            }
+
+            * {
+                font-family: 'Inter', sans-serif;
+            }
+
+            /* Hide Streamlit defaults */
+            #MainMenu, footer, header {visibility: hidden;}
+            .stApp > header {display: none;}
+
+            /* Main app background */
+            .stApp {
+                background: var(--main-bg);
+            }
+
+            .main .block-container {
+                padding: 0;
+                max-width: 100%;
+            }
+
+            /* Sidebar */
+            section[data-testid="stSidebar"] {
+                background: var(--sidebar-bg) !important;
+                border-right: none;
+            }
+
+            section[data-testid="stSidebar"] > div {
+                padding: 2rem 1.5rem;
+                background: var(--sidebar-bg);
+            }
+
+            .sidebar-title {
+                color: var(--text-light);
+                font-size: 0.875rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                margin-bottom: 1rem;
+                opacity: 0.8;
+            }
+
+            /* Welcome screen */
+            .welcome-screen {
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                background: linear-gradient(135deg, #5a6d7e 0%, #4a5a6a 100%);
+                padding: 4rem 2rem;
+                text-align: center;
+            }
+
+            .sphere {
+                width: 200px;
+                height: 200px;
+                background: radial-gradient(circle at 35% 35%, #556575 0%, #3a4a5a 40%, #2a3a4a 100%);
+                border-radius: 50%;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 10px 30px rgba(0,0,0,0.3);
+                animation: float 6s ease-in-out infinite;
+                margin: 0 auto 3rem;
+            }
+
+            @keyframes float {
+                0%, 100% { transform: translateY(0px) rotate(0deg); }
+                25% { transform: translateY(-15px) rotate(3deg); }
+                50% { transform: translateY(-25px) rotate(0deg); }
+                75% { transform: translateY(-15px) rotate(-3deg); }
+            }
+
+            .welcome-title {
+                font-family: 'Playfair Display', serif;
+                font-size: 3rem;
+                font-weight: 600;
+                color: var(--text-light);
+                margin-bottom: 2rem;
+                line-height: 1.2;
+            }
+
+            .welcome-disclaimer {
+                max-width: 600px;
+                color: var(--text-muted);
+                font-size: 0.95rem;
+                line-height: 1.7;
+                margin-bottom: 2rem;
+            }
+
+            /* Chat interface */
+            .chat-container {
+                background: var(--chat-bg);
+                min-height: 100vh;
+                padding-bottom: 180px;
+            }
+
+            .chat-messages {
+                max-width: 900px;
+                margin: 0 auto;
+                padding: 2rem;
+                padding-top: 4rem;
+            }
+
+            .message-bubble {
+                background: white;
+                border-radius: 12px;
+                padding: 1.5rem;
+                margin-bottom: 1rem;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                line-height: 1.7;
+                color: var(--text-dark);
+            }
+
+            .message-user {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+
+            /* Input area */
+            .input-container {
+                position: fixed;
+                bottom: 0;
+                right: 0;
+                left: 250px;
+                background: rgba(245, 245, 245, 0.98);
+                backdrop-filter: blur(10px);
+                padding: 1.5rem 2rem;
+                border-top: 1px solid var(--border);
+                z-index: 100;
+            }
+
+            .input-wrapper {
+                max-width: 900px;
+                margin: 0 auto;
+                display: flex;
+                gap: 1rem;
+                align-items: center;
+                background: white;
+                border-radius: 50px;
+                padding: 0.875rem 1.5rem;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                border: 1px solid var(--border);
+            }
+
+            /* Streamlit overrides */
+            .stButton > button {
+                background: transparent;
+                color: var(--text-light);
+                border: none;
+                padding: 0.75rem 0;
+                font-size: 0.95rem;
+                text-align: left;
+                width: 100%;
+                border-bottom: 1px solid rgba(255,255,255,0.1);
+                border-radius: 0;
+            }
+
+            .stStatus {
+                background: white !important;
+                border-radius: 12px !important;
+                padding: 1rem !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+apply_theme()
+
+# --- CACHED LOADERS ---
 @st.cache_resource
 def load_refiner():
     return QueryRefiner()
@@ -163,66 +319,9 @@ def load_knowledge_graph():
     if os.path.exists(GRAPH_FILE):
         kg.load(GRAPH_FILE)
     else:
-        st.info("Building knowledge graph. Please wait.")
         kg.build_from_pdfs(DATA_FOLDER)
         kg.save(GRAPH_FILE)
     return kg
-
-refiner = load_refiner()
-scope_checker = load_scope_checker()
-
-def is_out_of_scope(text: str) -> bool:
-    """Check if query is about UK Contract Law. Very lenient to avoid false positives."""
-    # Keywords that indicate contract law topics
-    contract_keywords = [
-        'contract', 'agreement', 'promise', 'rent', 'lease', 'tenant', 'landlord',
-        'breach', 'terms', 'clause', 'offer', 'acceptance', 'misrepresentation',
-        'fraud', 'mistake', 'estoppel', 'liability', 'damages', 'remedies',
-        'seller', 'buyer', 'goods', 'service', 'money', 'payment', 'lied', 'false'
-    ]
-
-    text_lower = text.lower()
-    # If contains ANY contract keyword, it's in scope
-    if any(keyword in text_lower for keyword in contract_keywords):
-        return False
-
-    # Otherwise check with LLM as fallback
-    prompt = f"""Is this about UK Contract Law? Answer SCOPE or OUTSCOPE.
-Query: "{text}" """
-    try:
-        response = scope_checker.invoke(prompt)
-        result = response.content.strip().upper()
-        return "OUTSCOPE" in result and "SCOPE" not in result
-    except Exception:
-        return False  # If error, assume in scope
-
-def get_welcome_message() -> str:
-    return """Welcome to the AI UK Contract Law Advisor.
-
-I specialize in UK Contract Law, including:
-- Promissory Estoppel
-- Misrepresentation
-- Contractual Terms and Breaches
-- Mutual Mistake
-- Offer and Acceptance
-
-Ask a question about a legal scenario to begin."""
-
-st.set_page_config(page_title="AI UK Lawyer")
-_apply_custom_theme()
-st.title("AI UK Contract Law Advisor")
-
-if "runtime_mode_label" not in st.session_state:
-    st.session_state.runtime_mode_label = DEFAULT_RUNTIME_LABEL
-
-with st.sidebar:
-    st.subheader("Settings")
-    selected_label = st.selectbox(
-        "Mode",
-        [label for label, _ in RUNTIME_MODE_OPTIONS],
-        key="runtime_mode_label",
-    )
-runtime_mode = MODE_LOOKUP[selected_label]
 
 @st.cache_resource
 def load_rag_system(mode: str):
@@ -296,28 +395,50 @@ def load_rag_system(mode: str):
     except Exception as e:
         return None, None, file_catalog, f"Error loading RAG system: {str(e)}"
 
-vectorstore, knowledge_graph, loaded_files, status_msg = load_rag_system(runtime_mode)
+refiner = load_refiner()
+scope_checker = load_scope_checker()
 
-with st.sidebar:
-    st.header("Case Files")
-    if loaded_files:
-        for filename, info in loaded_files.items():
-            display = format_category_list(info.get("categories", []))
-            st.text(f"{filename} ({display})" if display else filename)
-    
-    st.divider()
-    st.caption(status_msg)
-    
-    if knowledge_graph:
-        st.subheader("Graph Metrics")
-        st.metric("Entities", knowledge_graph.graph.number_of_nodes())
-        st.metric("Relationships", knowledge_graph.graph.number_of_edges())
-        if st.button("Rebuild Graph"):
-            if os.path.exists(GRAPH_FILE):
-                os.remove(GRAPH_FILE)
-            st.cache_resource.clear()
-            st.rerun()
+# --- SCOPE CHECKING (IMPROVED) ---
+def is_out_of_scope(text: str) -> bool:
+    """Check if query is about UK Contract Law. Very lenient to avoid false positives."""
+    contract_keywords = [
+        'contract', 'agreement', 'promise', 'rent', 'lease', 'tenant', 'landlord',
+        'breach', 'terms', 'clause', 'offer', 'acceptance', 'misrepresentation',
+        'fraud', 'mistake', 'estoppel', 'liability', 'damages', 'remedies',
+        'seller', 'buyer', 'goods', 'service', 'money', 'payment', 'lied', 'false',
+        'broken', 'broken promise', 'legal', 'law', 'lawsuit', 'court'
+    ]
 
+    text_lower = text.lower()
+    # If contains ANY contract keyword, it's in scope
+    if any(keyword in text_lower for keyword in contract_keywords):
+        return False
+
+    # Otherwise check with LLM as fallback
+    prompt = f"""Is this about UK Contract Law? Answer SCOPE or OUTSCOPE.
+Query: "{text}" """
+    try:
+        response = scope_checker.invoke(prompt)
+        result = response.content.strip().upper()
+        return "OUTSCOPE" in result and "SCOPE" not in result
+    except Exception:
+        return False  # If error, assume in scope
+
+def get_welcome_message() -> str:
+    return """Welcome to the AI UK Contract Law Advisor.
+
+I specialize in UK Contract Law, including:
+- Promissory Estoppel
+- Misrepresentation
+- Contractual Terms and Breaches
+- Mutual Mistake
+- Offer and Acceptance
+
+Ask a question about a legal scenario to begin."""
+
+# --- SESSION STATE ---
+if "view" not in st.session_state:
+    st.session_state.view = "welcome"
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "tts_audio" not in st.session_state:
@@ -326,22 +447,123 @@ if "play_audio_idx" not in st.session_state:
     st.session_state.play_audio_idx = None
 if "pending_voice_prompt" not in st.session_state:
     st.session_state.pending_voice_prompt = None
+if "runtime_mode_label" not in st.session_state:
+    st.session_state.runtime_mode_label = DEFAULT_RUNTIME_LABEL
 
+# --- SIDEBAR ---
+with st.sidebar:
+    st.markdown('<div class="sidebar-title">Settings</div>', unsafe_allow_html=True)
+    selected_label = st.selectbox(
+        "Mode",
+        [label for label, _ in RUNTIME_MODE_OPTIONS],
+        key="runtime_mode_label",
+        label_visibility="collapsed"
+    )
+
+runtime_mode = MODE_LOOKUP[selected_label]
+vectorstore, knowledge_graph, loaded_files, status_msg = load_rag_system(runtime_mode)
+
+with st.sidebar:
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-title">System Status</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="color: white; font-size: 0.85rem; padding: 0.5rem 0;">📚 {len(loaded_files) if loaded_files else 0} documents</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="color: white; font-size: 0.85rem; padding: 0.5rem 0;">✅ {status_msg}</div>', unsafe_allow_html=True)
+
+    if knowledge_graph:
+        st.markdown(f'<div style="color: white; font-size: 0.85rem; padding: 0.5rem 0;">🔗 {knowledge_graph.graph.number_of_nodes()} entities</div>', unsafe_allow_html=True)
+        if st.button("🔄 Rebuild Graph"):
+            if os.path.exists(GRAPH_FILE):
+                os.remove(GRAPH_FILE)
+            st.cache_resource.clear()
+            st.rerun()
+
+# --- MAIN CONTENT ---
+if st.session_state.view == "welcome":
+    st.markdown('<div class="welcome-screen">', unsafe_allow_html=True)
+    st.markdown('<div class="sphere"></div>', unsafe_allow_html=True)
+    st.markdown('<h1 class="welcome-title">We are happy to be your<br>contract guide</h1>', unsafe_allow_html=True)
+    st.markdown("""
+        <p class="welcome-disclaimer">
+            <strong>Disclaimer:</strong> This chatbot is designed to provide general information and guidance related to contract law
+            for educational and informational purposes only. The content generated by this system does not
+            constitute legal advice, and you should not rely on it as a substitute for professional legal counsel.
+        </p>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("Get Started", key="get_started"):
+            st.session_state.view = "chat"
+            st.rerun()
+
+else:  # chat view
+    st.markdown('<div class="chat-container"><div class="chat-messages">', unsafe_allow_html=True)
+
+    for idx, message in enumerate(st.session_state.messages):
+        bubble_class = "message-bubble message-user" if message["role"] == "user" else "message-bubble"
+        st.markdown(f'<div class="{bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
+
+        if message["role"] == "assistant":
+            col1, col2, col3, col4 = st.columns([1, 1, 1, 6])
+            with col1:
+                if st.button("📋", key=f"copy_{idx}"):
+                    pass
+            with col2:
+                if st.button("👎", key=f"down_{idx}"):
+                    pass
+            with col3:
+                if st.button("👍", key=f"up_{idx}"):
+                    pass
+            with col4:
+                if st.button("🔊 Read Aloud", key=f"read_{idx}"):
+                    _handle_read_aloud(idx)
+                    st.rerun()
+
+            if st.session_state.play_audio_idx == idx:
+                audio_bytes = st.session_state.tts_audio.get(idx) or text_to_speech_bytes(message["content"])
+                st.session_state.tts_audio[idx] = audio_bytes
+                _render_audio_player(audio_bytes)
+                st.session_state.play_audio_idx = None
+
+    st.markdown('</div></div>', unsafe_allow_html=True)
+
+# --- INPUT AREA (ALWAYS VISIBLE) ---
+st.markdown('<div class="input-container"><div class="input-wrapper"><span style="font-size: 1.2rem; color: #64748b;">➕</span><div style="flex: 1;">', unsafe_allow_html=True)
+
+user_input = st.text_input(
+    "Message",
+    placeholder="Describe the legal scenario ...",
+    label_visibility="collapsed",
+    key="chat_input"
+)
+
+st.markdown('</div><div style="display: flex; gap: 0.75rem;">', unsafe_allow_html=True)
+
+# Voice input
+audio_data = mic_recorder(start_prompt="🎤", stop_prompt="⏹️", just_once=True, key="mic")
+
+if audio_data and audio_data.get("bytes"):
+    with st.spinner("Transcribing..."):
+        transcript = speech_to_text_from_audio_bytes(audio_data["bytes"], fmt=audio_data.get("format", "wav"))
+        if transcript:
+            st.session_state.pending_voice_prompt = transcript
+
+st.markdown('</div></div></div>', unsafe_allow_html=True)
+
+# --- PROCESS INPUT ---
 def process_prompt(prompt_text: str):
+    if st.session_state.view != "chat":
+        st.session_state.view = "chat"
+
     st.session_state.messages.append({"role": "user", "content": prompt_text})
 
-    with st.chat_message("user"):
-        st.markdown(f"<div class='user-message'>{prompt_text}</div>", unsafe_allow_html=True)
-
     if runtime_mode == "demo":
-        with st.chat_message("assistant"):
-            response_placeholder = st.empty()
-            full_response = ""
-            for chunk in vectorstore.stream(prompt_text):
-                full_response += chunk
-                response_placeholder.markdown(full_response + "▌")
-            response_placeholder.markdown(f"<div class='assistant-message'>{full_response}</div>", unsafe_allow_html=True)
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
+        full_response = ""
+        for chunk in vectorstore.stream(prompt_text):
+            full_response += chunk
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
+        st.rerun()
         return
 
     if not vectorstore or not knowledge_graph:
@@ -349,64 +571,52 @@ def process_prompt(prompt_text: str):
         return
 
     if is_out_of_scope(prompt_text):
-        with st.chat_message("assistant"):
-            msg = get_welcome_message()
-            st.markdown(msg)
-            st.session_state.messages.append({"role": "assistant", "content": msg})
+        msg = get_welcome_message()
+        st.session_state.messages.append({"role": "assistant", "content": msg})
+        st.rerun()
         return
 
-    refined_text = prompt_text
-    domain_tags = ["General"]
+    # Show analysis
+    with st.status("🔍 Analyzing Legal Context...", expanded=True) as status:
+        st.write("Step 1: Classifying legal domain...")
+        domain_tags, refined_text = refiner.refine(prompt_text)
 
-    with st.chat_message("assistant"):
-        with st.status("Analyzing Legal Context...", expanded=True) as status:
-            try:
-                st.write("Step 1: Classifying legal domain...")
-                domain_tags, refined_text = refiner.refine(prompt_text)
+        st.write("Step 2: Identifying content type...")
+        content_categories = guess_question_categories(prompt_text)
+        content_display = format_category_list(content_categories)
 
-                st.write("Step 2: Identifying content type...")
-                content_categories = guess_question_categories(prompt_text)
-                content_display = format_category_list(content_categories)
+        if content_display:
+            st.markdown(f"**Content Type:** `{content_display}`")
+        st.markdown(f"**Legal Domain:** {', '.join([f'`{d}`' for d in domain_tags])}")
+        st.markdown(f"**Refined Query:** `{refined_text}`")
 
-                if content_display:
-                    st.markdown(f"**Content Type:** `{content_display}`")
-                st.markdown(f"**Legal Domain:** {', '.join([f'`{d}`' for d in domain_tags])}")
-                st.markdown(f"**Refined Query:** `{refined_text}`")
+        st.write("Step 3: Retrieving with GraphRAG...")
+        hybrid_retriever = HybridGraphRetriever(vectorstore, knowledge_graph)
+        domain_str = domain_tags[0] if domain_tags else "General"
+        retrieved_docs = hybrid_retriever.get_relevant_documents(refined_text, domain=domain_str, k=4)
 
-                status.update(label="Context identified", state="complete", expanded=False)
-            except Exception as e:
-                st.error(f"Classification failed: {str(e)}")
-                status.update(label="Analysis Error", state="error")
-                return
+        st.write(f"Retrieved {len(retrieved_docs)} documents")
 
-        try:
-            st.write("Retrieving with GraphRAG...")
-            hybrid_retriever = HybridGraphRetriever(vectorstore, knowledge_graph)
-            domain_str = domain_tags[0] if domain_tags else "General"
-            retrieved_docs = hybrid_retriever.get_relevant_documents(refined_text, domain=domain_str, k=4)
+        graph_context = ""
+        for doc in retrieved_docs:
+            if "graph_context" in doc.metadata:
+                graph_context = doc.metadata["graph_context"]
+                break
 
-            st.write(f"Retrieved {len(retrieved_docs)} documents")
+        if graph_context:
+            with st.expander("📊 Knowledge Graph Context"):
+                st.markdown(graph_context)
 
-            graph_context = ""
-            for doc in retrieved_docs:
-                if "graph_context" in doc.metadata:
-                    graph_context = doc.metadata["graph_context"]
-                    break
+        status.update(label="✅ Analysis Complete", state="complete", expanded=False)
 
-            if graph_context:
-                with st.expander("Knowledge Graph Context"):
-                    st.markdown(graph_context)
-            else:
-                st.caption("No graph relationships found for this query")
+    # Generate response with waiting music
+    waiting_audio_placeholder = st.empty()
+    _render_waiting_tune(waiting_audio_placeholder)
 
-        except Exception as e:
-            st.error(f"GraphRAG retrieval failed: {str(e)}")
-            return
-
-        llm_engine = ChatOllama(model=MODEL_NAME, temperature=0.1)
-        domains_str = ", ".join(domain_tags)
-        prompt_template = ChatPromptTemplate.from_template(
-            f"""You are an expert UK Contract Law consultant specializing in {domains_str}.
+    llm_engine = ChatOllama(model=MODEL_NAME, temperature=0.1)
+    domains_str = ", ".join(domain_tags)
+    prompt_template = ChatPromptTemplate.from_template(
+        f"""You are an expert UK Contract Law consultant specializing in {domains_str}.
 
 Use IRAC method (Issue, Rule, Analysis, Conclusion).
 Cite cases with [Year] citations.
@@ -416,79 +626,45 @@ RETRIEVED CONTEXT: {{context}}
 KNOWLEDGE GRAPH: {{graph}}
 
 User Query: {{question}}"""
-        )
+    )
 
-        rag_chain = (
-            {
-                "context": lambda x: "\n\n".join([d.page_content for d in retrieved_docs]),
-                "graph": lambda x: graph_context if graph_context else "No graph relationships found",
-                "question": RunnablePassthrough()
-            }
-            | prompt_template
-            | llm_engine
-            | StrOutputParser()
-        )
+    rag_chain = (
+        {
+            "context": lambda x: "\n\n".join([d.page_content for d in retrieved_docs]),
+            "graph": lambda x: graph_context if graph_context else "No graph relationships found",
+            "question": RunnablePassthrough()
+        }
+        | prompt_template
+        | llm_engine
+        | StrOutputParser()
+    )
 
-        response_placeholder = st.empty()
-        waiting_audio = st.empty()
-        _render_waiting_tune(waiting_audio)
+    full_response = ""
+    try:
+        for chunk in rag_chain.stream(refined_text):
+            full_response += chunk
 
-        full_response = ""
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+        # Generate TTS
         try:
-            for chunk in rag_chain.stream(refined_text):
-                full_response += chunk
-                response_placeholder.markdown(full_response + "▌")
+            audio_bytes = text_to_speech_bytes(full_response)
+            st.session_state.tts_audio[len(st.session_state.messages) - 1] = audio_bytes
+        except Exception:
+            pass
 
-            response_placeholder.markdown(f"<div class='assistant-message'>{full_response}</div>", unsafe_allow_html=True)
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
-
-            try:
-                audio_bytes = text_to_speech_bytes(full_response)
-                st.session_state.tts_audio[len(st.session_state.messages) - 1] = audio_bytes
-            except Exception:
-                pass
-
-        except Exception as e:
-            st.error(f"Response generation error: {e}")
-        finally:
-            waiting_audio.empty()
+    except Exception as e:
+        st.error(f"Response generation error: {e}")
+    finally:
+        waiting_audio_placeholder.empty()
 
     st.rerun()
 
-def render_history():
-    for idx, message in enumerate(st.session_state.messages):
-        with st.chat_message(message["role"]):
-            css_class = "assistant-message" if message["role"] == "assistant" else "user-message"
-            st.markdown(f"<div class='{css_class}'>{message['content']}</div>", unsafe_allow_html=True)
-
-            if message["role"] == "assistant":
-                if st.button("Read Aloud", key=f"read_{idx}"):
-                    _handle_read_aloud(idx)
-                    st.rerun()
-                
-                if st.session_state.play_audio_idx == idx:
-                    audio_bytes = st.session_state.tts_audio.get(idx) or text_to_speech_bytes(message["content"])
-                    st.session_state.tts_audio[idx] = audio_bytes
-                    _render_audio_player(audio_bytes)
-                    st.session_state.play_audio_idx = None
-
-render_history()
-
-st.divider()
-st.subheader("Voice Input")
-audio_data = mic_recorder(start_prompt="Record", stop_prompt="Transcribe", just_once=True, key="mic")
-
-if audio_data and audio_data.get("bytes"):
-    with st.spinner("Transcribing..."):
-        transcript = speech_to_text_from_audio_bytes(audio_data["bytes"], fmt=audio_data.get("format", "wav"))
-        if transcript:
-            st.session_state.pending_voice_prompt = transcript
-
+# --- PROCESS PENDING INPUTS ---
 if st.session_state.pending_voice_prompt:
     prompt_to_process = st.session_state.pending_voice_prompt
     st.session_state.pending_voice_prompt = None
     process_prompt(prompt_to_process)
 
-user_input = st.chat_input("Ask a legal question...")
 if user_input:
     process_prompt(user_input)

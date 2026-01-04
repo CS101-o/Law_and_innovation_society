@@ -188,42 +188,42 @@ def apply_theme():
                 align-items: center;
                 justify-content: center;
                 background: linear-gradient(135deg, #5a6d7e 0%, #4a5a6a 100%);
-                padding: 4rem 2rem;
+                padding: 2rem;
                 text-align: center;
             }
 
             .sphere {
-                width: 200px;
-                height: 200px;
+                width: 150px;
+                height: 150px;
                 background: radial-gradient(circle at 35% 35%, #556575 0%, #3a4a5a 40%, #2a3a4a 100%);
                 border-radius: 50%;
                 box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 10px 30px rgba(0,0,0,0.3);
                 animation: float 6s ease-in-out infinite;
-                margin: 0 auto 3rem;
+                margin: 0 auto 1.5rem;
             }
 
             @keyframes float {
                 0%, 100% { transform: translateY(0px) rotate(0deg); }
-                25% { transform: translateY(-15px) rotate(3deg); }
-                50% { transform: translateY(-25px) rotate(0deg); }
-                75% { transform: translateY(-15px) rotate(-3deg); }
+                25% { transform: translateY(-10px) rotate(3deg); }
+                50% { transform: translateY(-15px) rotate(0deg); }
+                75% { transform: translateY(-10px) rotate(-3deg); }
             }
 
             .welcome-title {
                 font-family: 'Playfair Display', serif;
-                font-size: 3rem;
+                font-size: 2.2rem;
                 font-weight: 600;
                 color: var(--text-light);
-                margin-bottom: 2rem;
+                margin-bottom: 1rem;
                 line-height: 1.2;
             }
 
             .welcome-disclaimer {
-                max-width: 600px;
+                max-width: 550px;
                 color: var(--text-muted);
-                font-size: 0.95rem;
-                line-height: 1.7;
-                margin-bottom: 2rem;
+                font-size: 0.9rem;
+                line-height: 1.6;
+                margin-bottom: 1.5rem;
             }
 
             /* Chat interface */
@@ -272,11 +272,11 @@ def apply_theme():
                 max-width: 900px;
                 margin: 0 auto;
                 display: flex;
-                gap: 1rem;
+                gap: 0.75rem;
                 align-items: center;
                 background: white;
                 border-radius: 50px;
-                padding: 0.875rem 1.5rem;
+                padding: 0.75rem 1.25rem;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                 border: 1px solid var(--border);
             }
@@ -531,27 +531,31 @@ else:  # chat view
     st.markdown('</div></div>', unsafe_allow_html=True)
 
 # --- INPUT AREA (ALWAYS VISIBLE) ---
-st.markdown('<div class="input-container"><div class="input-wrapper"><span style="font-size: 1.2rem; color: #64748b;">➕</span><div style="flex: 1;">', unsafe_allow_html=True)
+st.markdown('<div class="input-container"><div class="input-wrapper"><span style="font-size: 1.1rem; color: #64748b;">✏️</span><div style="flex: 1;">', unsafe_allow_html=True)
 
 user_input = st.text_input(
     "Message",
-    placeholder="Describe the legal scenario ...",
+    placeholder="Ask about contract law...",
     label_visibility="collapsed",
     key="chat_input"
 )
 
-st.markdown('</div><div style="display: flex; gap: 0.75rem;">', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
-# Voice input
-audio_data = mic_recorder(start_prompt="🎤", stop_prompt="⏹️", just_once=True, key="mic")
+# Voice input - styled separately
+col_mic, col_send = st.columns([1, 3])
+with col_mic:
+    st.markdown('<div style="display: flex; justify-content: center; padding: 0.5rem 0;">', unsafe_allow_html=True)
+    audio_data = mic_recorder(start_prompt="🎤", stop_prompt="⏹️", just_once=True, key="mic")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-if audio_data and audio_data.get("bytes"):
-    with st.spinner("Transcribing..."):
-        transcript = speech_to_text_from_audio_bytes(audio_data["bytes"], fmt=audio_data.get("format", "wav"))
-        if transcript:
-            st.session_state.pending_voice_prompt = transcript
+    if audio_data and audio_data.get("bytes"):
+        with st.spinner("Transcribing..."):
+            transcript = speech_to_text_from_audio_bytes(audio_data["bytes"], fmt=audio_data.get("format", "wav"))
+            if transcript:
+                st.session_state.pending_voice_prompt = transcript
 
-st.markdown('</div></div></div>', unsafe_allow_html=True)
+st.markdown('</div></div>', unsafe_allow_html=True)
 
 # --- PROCESS INPUT ---
 def process_prompt(prompt_text: str):

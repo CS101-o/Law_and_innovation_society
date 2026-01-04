@@ -172,15 +172,29 @@ refiner = load_refiner()
 scope_checker = load_scope_checker()
 
 def is_out_of_scope(text: str) -> bool:
-    prompt = f"""Identify if the following query is related to UK Contract Law.
-    Answer only SCOPE or OUTSCOPE.
-    Query: "{text}" """
+    """Check if query is about UK Contract Law. Very lenient to avoid false positives."""
+    # Keywords that indicate contract law topics
+    contract_keywords = [
+        'contract', 'agreement', 'promise', 'rent', 'lease', 'tenant', 'landlord',
+        'breach', 'terms', 'clause', 'offer', 'acceptance', 'misrepresentation',
+        'fraud', 'mistake', 'estoppel', 'liability', 'damages', 'remedies',
+        'seller', 'buyer', 'goods', 'service', 'money', 'payment', 'lied', 'false'
+    ]
+
+    text_lower = text.lower()
+    # If contains ANY contract keyword, it's in scope
+    if any(keyword in text_lower for keyword in contract_keywords):
+        return False
+
+    # Otherwise check with LLM as fallback
+    prompt = f"""Is this about UK Contract Law? Answer SCOPE or OUTSCOPE.
+Query: "{text}" """
     try:
         response = scope_checker.invoke(prompt)
         result = response.content.strip().upper()
-        return "OUTSCOPE" in result or "OUT" in result
+        return "OUTSCOPE" in result and "SCOPE" not in result
     except Exception:
-        return False
+        return False  # If error, assume in scope
 
 def get_welcome_message() -> str:
     return """Welcome to the AI UK Contract Law Advisor.

@@ -449,6 +449,8 @@ if "pending_voice_prompt" not in st.session_state:
     st.session_state.pending_voice_prompt = None
 if "runtime_mode_label" not in st.session_state:
     st.session_state.runtime_mode_label = DEFAULT_RUNTIME_LABEL
+if "last_processed_input" not in st.session_state:
+    st.session_state.last_processed_input = None
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -556,6 +558,8 @@ def process_prompt(prompt_text: str):
     if st.session_state.view != "chat":
         st.session_state.view = "chat"
 
+    # Mark this input as processed
+    st.session_state.last_processed_input = prompt_text
     st.session_state.messages.append({"role": "user", "content": prompt_text})
 
     if runtime_mode == "demo":
@@ -665,7 +669,6 @@ if st.session_state.pending_voice_prompt:
     prompt_to_process = st.session_state.pending_voice_prompt
     st.session_state.pending_voice_prompt = None
     process_prompt(prompt_to_process)
-elif user_input:
-    # Only process if this is a new input (not from a previous run)
-    if len(st.session_state.messages) == 0 or st.session_state.messages[-1]["role"] != "user" or st.session_state.messages[-1]["content"] != user_input:
-        process_prompt(user_input)
+elif user_input and user_input != st.session_state.last_processed_input:
+    # Only process if input is new (different from last processed)
+    process_prompt(user_input)

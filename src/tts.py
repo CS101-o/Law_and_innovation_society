@@ -1,6 +1,7 @@
 from io import BytesIO
 import os
 from typing import Optional
+import tempfile
 
 from gtts import gTTS
 from pydub import AudioSegment
@@ -28,7 +29,19 @@ def text_to_speech_bytes(text: str) -> bytes:
 
 def _ensure_wav_bytes(audio_bytes: bytes, fmt: str) -> bytes:
     """Convert arbitrary audio bytes into mono WAV for recognition."""
-    audio_segment = AudioSegment.from_file(BytesIO(audio_bytes), format=fmt)
+    # For WebM and other streaming formats, save to temp file first
+    # as pydub's BytesIO handling can be unreliable with some formats
+    if fmt.lower() in {"webm", "opus", "ogg"}:
+        with tempfile.NamedTemporaryFile(suffix=f".{fmt.lower()}", delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+        try:
+            audio_segment = AudioSegment.from_file(tmp_path, format=fmt)
+        finally:
+            os.unlink(tmp_path)
+    else:
+        audio_segment = AudioSegment.from_file(BytesIO(audio_bytes), format=fmt)
+
     audio_segment = audio_segment.set_channels(1).set_frame_rate(16000)
 
     wav_buffer = BytesIO()

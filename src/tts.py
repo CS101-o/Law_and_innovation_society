@@ -29,16 +29,27 @@ def text_to_speech_bytes(text: str) -> bytes:
 
 def _ensure_wav_bytes(audio_bytes: bytes, fmt: str) -> bytes:
     """Convert arbitrary audio bytes into mono WAV for recognition."""
-    # For WebM and other streaming formats, save to temp file first
-    # as pydub's BytesIO handling can be unreliable with some formats
+    # For WebM and other streaming formats, try multiple approaches
     if fmt.lower() in {"webm", "opus", "ogg"}:
-        with tempfile.NamedTemporaryFile(suffix=f".{fmt.lower()}", delete=False) as tmp:
-            tmp.write(audio_bytes)
-            tmp_path = tmp.name
+        # First try: temp file (more stable for some codecs)
         try:
-            audio_segment = AudioSegment.from_file(tmp_path, format=fmt)
-        finally:
-            os.unlink(tmp_path)
+            with tempfile.NamedTemporaryFile(suffix=f".{fmt.lower()}", delete=False) as tmp:
+                tmp.write(audio_bytes)
+                tmp_path = tmp.name
+            try:
+                audio_segment = AudioSegment.from_file(tmp_path, format=fmt)
+                os.unlink(tmp_path)
+            except Exception as e1:
+                os.unlink(tmp_path)
+                # Second try: BytesIO with format auto-detection
+                try:
+                    audio_segment = AudioSegment.from_file(BytesIO(audio_bytes), format=fmt)
+                except Exception as e2:
+                    # Third try: Try raw audio interpretation if both fail
+                    print(f"⚠ WebM decoding failed: {e1}")
+                    raise e2
+        except Exception as e:
+            raise e
     else:
         audio_segment = AudioSegment.from_file(BytesIO(audio_bytes), format=fmt)
 
@@ -56,30 +67,44 @@ def speech_to_text_from_audio_bytes(audio_bytes: bytes, fmt: str = "wav") -> Opt
         return None
 
     fmt = (fmt or "webm").lower()
-
-    # Always convert to WAV format for speech_recognition compatibility
-    try:
-        if fmt not in {"wav", "x-wav"}:
-            audio_bytes = _ensure_wav_bytes(audio_bytes, fmt)
-    except Exception as e:
-        print(f"Format conversion error: {e}")
-        # If conversion fails, try with webm as fallback
-        try:
-            audio_bytes = _ensure_wav_bytes(audio_bytes, "webm")
-        except Exception as e2:
-            print(f"WebM fallback failed: {e2}")
-            return None
-
     recognizer = sr.Recognizer()
 
-    try:
-        # Load audio file from bytes
-        audio_file = BytesIO(audio_bytes)
-        with sr.AudioFile(audio_file) as source:
-            # Recognize speech from the audio
-            audio = recognizer.record(source)
+    # Try direct recognition first if it's already WAV
+    if fmt in {"wav", "x-wav"}:
+        try:
+            audio_file = BytesIO(audio_bytes)
+            with sr.AudioFile(audio_file) as source:
+                audio = recognizer.record(source)
+            text = recognizer.recognize_google(audio)
+            print(f"✓ Transcribed: {text}")
+            return text
+        except Exception as e:
+            print(f"Direct WAV transcription failed: {e}")
+            return None
 
-        # Try to transcribe
+    # For other formats, try conversion
+    try:
+        converted_bytes = _ensure_wav_bytes(audio_bytes, fmt)
+    except Exception as e:
+        print(f"Format conversion error ({fmt}): {e}")
+        # If WebM fails, it might be raw audio - try direct transcription
+        try:
+            print("Attempting direct transcription without conversion...")
+            audio_file = BytesIO(audio_bytes)
+            with sr.AudioFile(audio_file) as source:
+                audio = recognizer.record(source)
+            text = recognizer.recognize_google(audio)
+            print(f"✓ Transcribed (direct): {text}")
+            return text
+        except Exception as e2:
+            print(f"Direct transcription also failed: {e2}")
+            return None
+
+    # Transcribe the converted audio
+    try:
+        audio_file = BytesIO(converted_bytes)
+        with sr.AudioFile(audio_file) as source:
+            audio = recognizer.record(source)
         text = recognizer.recognize_google(audio)
         print(f"✓ Transcribed: {text}")
         return text

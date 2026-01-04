@@ -14,7 +14,7 @@ os.makedirs(audio_folder, exist_ok=True)
 mp3_path = os.path.join(audio_folder, "output.mp3")
 wav_path = os.path.join(audio_folder, "output.wav")
 
-
+# --- TEXT TO SPEECH ---
 def text_to_speech_bytes(text: str) -> bytes:
     """Return an MP3 byte stream generated with gTTS."""
     if not text.strip():

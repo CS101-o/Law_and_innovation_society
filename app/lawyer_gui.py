@@ -560,6 +560,7 @@ with col_mic:
                     if transcript and transcript.strip():
                         st.session_state.pending_voice_prompt = transcript
                         st.success(f"✓ Heard: {transcript[:60]}..." if len(transcript) > 60 else f"✓ Heard: {transcript}")
+                        st.rerun()  # Trigger immediate processing
                     else:
                         st.warning("⚠️ Could not understand audio. Please try again or type your question.")
                 else:

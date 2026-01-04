@@ -1,18 +1,36 @@
 import numpy as np
+import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from langchain_ollama import OllamaEmbeddings
+import os
 
 # CONFIG
-GEN_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
+# Use smaller, faster model by default. Set to "Qwen/Qwen2.5-7B-Instruct" for higher quality (slower)
+# Smaller models: TinyLlama-1.1B-Chat (best), microsoft/phi-2, OpenBuddy/openbuddy-llm2-7b
+GEN_MODEL_ID = os.environ.get("REFINER_MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
 EMBED_MODEL = "nomic-embed-text"
+
+# Detect device
+if torch.cuda.is_available():
+    DEVICE = "cuda"
+elif torch.backends.mps.is_available():
+    DEVICE = "mps"
+else:
+    DEVICE = "cpu"
 
 class QueryRefiner:
     def __init__(self):
-        print(f"🧹 Initializing Refiner & Classifier...")
-        
+        print(f"🧹 Initializing Refiner & Classifier on {DEVICE.upper()}...")
+        print(f"   Model: {GEN_MODEL_ID}")
+
         # 1. Generative Model (for rewriting text only)
         self.tokenizer = AutoTokenizer.from_pretrained(GEN_MODEL_ID)
-        self.model = AutoModelForCausalLM.from_pretrained(GEN_MODEL_ID)
+        self.model = AutoModelForCausalLM.from_pretrained(
+            GEN_MODEL_ID,
+            torch_dtype=torch.float16 if DEVICE != "cpu" else torch.float32,
+            device_map=DEVICE
+        )
+        self.model.eval()  # Set to eval mode for inference
         
         # 2. Embedding Model (for strict classification)
         self.embedder = OllamaEmbeddings(model=EMBED_MODEL)
@@ -64,38 +82,40 @@ class QueryRefiner:
         print(f"📊 Vector Scores: {scores[:2]}") 
         
         # --- STEP B: REWRITING (The LLM Approach) ---
-        system_prompt = f"""You are a legal secretary. Rewrite this client query into a formal legal question for a specialist in {top_domain}.
-Do NOT output the domain name. Just the question.
-Input: "{raw_query}"
-"""
-        
+        # Build messages in chat format for better instruction following
         messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": "Formal Query:"}
+            {"role": "system", "content": f"You are a legal secretary. Rewrite queries as formal legal questions for {top_domain} specialists. Be concise."},
+            {"role": "user", "content": f'Rewrite as a formal legal question:\n"{raw_query}"'}
         ]
-        
-        text = self.tokenizer.apply_chat_template(
-            messages, 
-            tokenize=False, 
-            add_generation_prompt=True
-        )
-        
-        model_inputs = self.tokenizer([text], return_tensors="pt")
-        generated_ids = self.model.generate(
-            model_inputs.input_ids,
-            max_new_tokens=128,
-            do_sample=False
-        )
-        
+
+        # Apply chat template if available, otherwise use simple format
+        try:
+            text = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        except:
+            # Fallback for models without chat templates
+            text = f"System: {messages[0]['content']}\nUser: {messages[1]['content']}\nAssistant:"
+
+        model_inputs = self.tokenizer([text], return_tensors="pt").to(DEVICE)
+        with torch.no_grad():
+            generated_ids = self.model.generate(
+                model_inputs.input_ids,
+                attention_mask=model_inputs.attention_mask,
+                max_new_tokens=64,
+                do_sample=True,
+                temperature=0.5,
+                top_p=0.9
+            )
+
+        # Extract only the generated part (after the input)
         generated_ids = [
-            output_ids[len(input_ids):] 
+            output_ids[len(input_ids):]
             for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
         ]
-        
+
         refined_query = self.tokenizer.batch_decode(
-            generated_ids, 
+            generated_ids,
             skip_special_tokens=True
-        )[0]
+        )[0].strip()
         
         return final_domains, refined_query.strip()
 

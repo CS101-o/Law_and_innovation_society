@@ -5,7 +5,6 @@ langchain-chroma
 langchain-text-splitters
 pypdf
 chromadb
-
 gTTS 
 simpleaudio
 pydub

@@ -329,7 +329,7 @@ def load_rag_system(mode: str):
         os.makedirs(DATA_FOLDER)
 
     pdf_files = []
-    for root, dirs, files in os.walk(DATA_FOLDER):
+    for root, _, files in os.walk(DATA_FOLDER):
         for file in files:
             if file.endswith(".pdf"):
                 rel_path = os.path.relpath(os.path.join(root, file), DATA_FOLDER)
@@ -630,8 +630,8 @@ User Query: {{question}}"""
 
     rag_chain = (
         {
-            "context": lambda x: "\n\n".join([d.page_content for d in retrieved_docs]),
-            "graph": lambda x: graph_context if graph_context else "No graph relationships found",
+            "context": lambda _: "\n\n".join([d.page_content for d in retrieved_docs]),
+            "graph": lambda _: graph_context if graph_context else "No graph relationships found",
             "question": RunnablePassthrough()
         }
         | prompt_template
@@ -665,6 +665,7 @@ if st.session_state.pending_voice_prompt:
     prompt_to_process = st.session_state.pending_voice_prompt
     st.session_state.pending_voice_prompt = None
     process_prompt(prompt_to_process)
-
-if user_input:
-    process_prompt(user_input)
+elif user_input:
+    # Only process if this is a new input (not from a previous run)
+    if len(st.session_state.messages) == 0 or st.session_state.messages[-1]["role"] != "user" or st.session_state.messages[-1]["content"] != user_input:
+        process_prompt(user_input)

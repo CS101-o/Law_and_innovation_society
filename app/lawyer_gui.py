@@ -238,6 +238,71 @@ def apply_theme():
                 margin: 0 auto;
                 padding: 2rem;
                 padding-top: 4rem;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .empty-state {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 400px;
+                gap: 2rem;
+                margin: auto;
+            }
+
+            .decorator-shapes {
+                display: flex;
+                gap: 3rem;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .shape-circle {
+                width: 80px;
+                height: 80px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                opacity: 0.3;
+                animation: float-shape 6s ease-in-out infinite;
+            }
+
+            .shape-square {
+                width: 70px;
+                height: 70px;
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                opacity: 0.3;
+                animation: float-shape 7s ease-in-out infinite;
+                border-radius: 8px;
+            }
+
+            .shape-triangle {
+                width: 0;
+                height: 0;
+                border-left: 40px solid transparent;
+                border-right: 40px solid transparent;
+                border-bottom: 70px solid #4facfe;
+                opacity: 0.3;
+                animation: float-shape 8s ease-in-out infinite;
+            }
+
+            @keyframes float-shape {
+                0%, 100% { transform: translateY(0px) rotate(0deg); }
+                25% { transform: translateY(-15px) rotate(10deg); }
+                50% { transform: translateY(-30px) rotate(20deg); }
+                75% { transform: translateY(-15px) rotate(10deg); }
+            }
+
+            .empty-text {
+                text-align: center;
+                color: var(--text-muted);
+                font-size: 1.1rem;
+            }
+
+            .empty-text strong {
+                color: var(--text-light);
+                font-size: 1.3rem;
             }
 
             .message-bubble {
@@ -482,24 +547,41 @@ with st.sidebar:
 # --- MAIN CONTENT ---
 st.markdown('<div class="chat-container"><div class="chat-messages">', unsafe_allow_html=True)
 
-for idx, message in enumerate(st.session_state.messages):
-    bubble_class = "message-bubble message-user" if message["role"] == "user" else "message-bubble"
-    st.markdown(f'<div class="{bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
+# Show empty state if no messages
+if not st.session_state.messages:
+    st.markdown("""
+    <div class="empty-state">
+        <div class="decorator-shapes">
+            <div class="shape-circle"></div>
+            <div class="shape-square"></div>
+            <div class="shape-triangle"></div>
+        </div>
+        <div class="empty-text">
+            <strong>Welcome to Contract Law Advisor</strong><br>
+            Ask a question about UK contract law to get started
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    # Show messages
+    for idx, message in enumerate(st.session_state.messages):
+        bubble_class = "message-bubble message-user" if message["role"] == "user" else "message-bubble"
+        st.markdown(f'<div class="{bubble_class}">{message["content"]}</div>', unsafe_allow_html=True)
 
-    if message["role"] == "assistant":
-        col1, col2 = st.columns([1, 10])
-        with col1:
-            pass
-        with col2:
-            if st.button("🔊 Read Aloud", key=f"read_{idx}"):
-                _handle_read_aloud(idx)
-                st.rerun()
+        if message["role"] == "assistant":
+            col1, col2 = st.columns([1, 10])
+            with col1:
+                pass
+            with col2:
+                if st.button("🔊 Read Aloud", key=f"read_{idx}"):
+                    _handle_read_aloud(idx)
+                    st.rerun()
 
-        if st.session_state.play_audio_idx == idx:
-            audio_bytes = st.session_state.tts_audio.get(idx) or text_to_speech_bytes(message["content"])
-            st.session_state.tts_audio[idx] = audio_bytes
-            _render_audio_player(audio_bytes)
-            st.session_state.play_audio_idx = None
+            if st.session_state.play_audio_idx == idx:
+                audio_bytes = st.session_state.tts_audio.get(idx) or text_to_speech_bytes(message["content"])
+                st.session_state.tts_audio[idx] = audio_bytes
+                _render_audio_player(audio_bytes)
+                st.session_state.play_audio_idx = None
 
 st.markdown('</div></div>', unsafe_allow_html=True)
 

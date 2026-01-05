@@ -229,7 +229,7 @@ def apply_theme():
 
             /* Chat interface */
             .chat-container {
-                background: var(--chat-bg);
+                background: var(--main-bg);
                 min-height: 100vh;
                 padding-bottom: 180px;
             }

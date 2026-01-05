@@ -272,7 +272,7 @@ def apply_theme():
                 flex-direction: column;
                 align-items: center;
                 justify-content: flex-start;
-                padding-top: 100px;
+                padding-top: 60px;
                 gap: 1.5rem;
                 margin: 0;
                 width: 100%;

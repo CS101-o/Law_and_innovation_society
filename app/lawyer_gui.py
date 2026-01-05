@@ -706,7 +706,7 @@ def process_prompt(prompt_text: str):
 Use IRAC method (Issue, Rule, Analysis, Conclusion).
 Cite cases with [Year] citations.
 
-IMPORTANT: End with a clear, single-sentence CONCLUSION that directly answers the question.
+IMPORTANT: After the formal IRAC analysis, add a "Simple Answer:" section with a casual, plain-language response (1-2 sentences) that directly answers the user's question in everyday language.
 
 RETRIEVED CONTEXT: {{context}}
 

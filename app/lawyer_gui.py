@@ -148,7 +148,6 @@ def apply_theme():
             /* Hide Streamlit defaults */
             #MainMenu, footer, header {visibility: hidden;}
             .stApp > header {display: none;}
-            .stTextInput {display: none !important;}
             [data-testid="stVerticalBlock"] > div:has(input[type="text"]) {display: none !important;}
             .stChatInputContainer {display: none !important;}
 
@@ -372,6 +371,30 @@ def apply_theme():
                 padding: 0.75rem 1.25rem;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                 border: 1px solid var(--border);
+            }
+
+            /* Show and style text input */
+            .stTextInput {
+                display: flex !important;
+                width: 100%;
+                flex: 1;
+            }
+
+            .stTextInput > div {
+                width: 100%;
+            }
+
+            .stTextInput input {
+                width: 100% !important;
+                border: none !important;
+                background: transparent !important;
+                padding: 0 !important;
+                font-size: 0.95rem;
+                color: var(--text-dark) !important;
+            }
+
+            .stTextInput input::placeholder {
+                color: #999 !important;
             }
 
             /* Streamlit overrides */

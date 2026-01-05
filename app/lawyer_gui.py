@@ -261,7 +261,6 @@ def apply_theme():
                 max-width: 900px;
                 margin: 0 auto;
                 padding: 0 2rem;
-                padding-bottom: 250px;
                 display: flex;
                 flex-direction: column;
                 width: 100%;
@@ -272,10 +271,11 @@ def apply_theme():
                 flex-direction: column;
                 align-items: center;
                 justify-content: flex-start;
-                padding-top: 20px;
+                padding-top: 40px;
                 gap: 1.5rem;
                 margin: 0;
                 width: 100%;
+                padding-bottom: 250px;
             }
 
             .decorator-shapes {

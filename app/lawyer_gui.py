@@ -152,6 +152,20 @@ def apply_theme():
             [data-testid="stVerticalBlock"] > div:has(input[type="text"]) {display: none !important;}
             .stChatInputContainer {display: none !important;}
 
+            /* Remove all extra vertical spacing */
+            .stVerticalBlock {
+                gap: 0 !important;
+            }
+
+            [data-testid="stVerticalBlock"] {
+                gap: 0 !important;
+            }
+
+            /* Hide empty vertical blocks */
+            [data-testid="stVerticalBlock"] > div:empty {
+                display: none !important;
+            }
+
             /* Main app background */
             .stApp {
                 background: var(--main-bg);
@@ -251,7 +265,6 @@ def apply_theme():
                 display: flex;
                 flex-direction: column;
                 width: 100%;
-                min-height: 100vh;
             }
 
             .empty-state {

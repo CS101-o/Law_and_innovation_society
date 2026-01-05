@@ -150,16 +150,6 @@ def apply_theme():
             .stApp > header {display: none;}
             .stChatInputContainer {display: none !important;}
 
-            /* Hide the default text input wrapper but keep the element functional */
-            .stTextInput {
-                position: absolute;
-                visibility: hidden;
-                width: 0;
-                height: 0;
-                padding: 0;
-                margin: 0;
-                border: none;
-            }
 
             /* Remove all extra vertical spacing */
             .stVerticalBlock {

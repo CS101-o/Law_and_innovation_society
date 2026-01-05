@@ -357,30 +357,23 @@ def apply_theme():
                 color: white;
             }
 
-            /* Input area */
-            .input-container {
-                position: fixed;
-                bottom: 0;
-                right: 0;
-                left: 250px;
-                background: rgba(245, 245, 245, 0.98);
-                backdrop-filter: blur(10px);
-                padding: 0.75rem 2rem;
-                border-top: 1px solid var(--border);
-                z-index: 100;
+            /* Hide Streamlit column gaps for input area */
+            [data-testid="stHorizontalBlock"] {
+                gap: 0.75rem !important;
             }
 
-            .input-wrapper {
-                max-width: 900px;
-                margin: 0 auto;
-                display: flex;
-                gap: 0.75rem;
-                align-items: center;
+            /* Style text input */
+            .stTextInput > div {
                 background: white;
-                border-radius: 50px;
-                padding: 0.75rem 1.25rem;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                border-radius: 12px;
+                padding: 0.5rem 1rem;
                 border: 1px solid var(--border);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+
+            .stTextInput input {
+                background: transparent !important;
+                border: none !important;
             }
 
 
@@ -624,21 +617,18 @@ else:
 st.markdown('</div></div>', unsafe_allow_html=True)
 
 # --- INPUT AREA (ALWAYS VISIBLE) ---
-st.markdown('<div class="input-container"><div class="input-wrapper"><span style="font-size: 1.1rem; color: #64748b;">✏️</span><div style="flex: 1;">', unsafe_allow_html=True)
+col_input, col_mic = st.columns([5, 1])
 
-user_input = st.text_input(
-    "Message",
-    placeholder="Ask about contract law...",
-    label_visibility="collapsed",
-    key="chat_input"
-)
+with col_input:
+    user_input = st.text_input(
+        "Message",
+        placeholder="Ask about contract law...",
+        label_visibility="collapsed",
+        key="chat_input"
+    )
 
-st.markdown('</div>', unsafe_allow_html=True)
-
-# Voice input - mic button
-st.markdown('<div style="display: flex; justify-content: center; padding: 0.5rem 0;">', unsafe_allow_html=True)
-audio_data = mic_recorder(start_prompt="🎤", stop_prompt="⏹️", just_once=True, key="mic")
-st.markdown('</div>', unsafe_allow_html=True)
+with col_mic:
+    audio_data = mic_recorder(start_prompt="🎤", stop_prompt="⏹️", just_once=True, key="mic")
 
 if audio_data and audio_data.get("bytes"):
     with st.spinner("Transcribing voice input..."):
@@ -653,8 +643,6 @@ if audio_data and audio_data.get("bytes"):
         st.session_state.pending_voice_prompt = transcript
     else:
         st.error("Could not understand that recording. Please try again.")
-
-st.markdown('</div></div>', unsafe_allow_html=True)
 
 # --- PROCESS INPUT ---
 def process_prompt(prompt_text: str):

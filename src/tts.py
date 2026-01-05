@@ -61,12 +61,55 @@ def _ensure_wav_bytes(audio_bytes: bytes, fmt: str) -> bytes:
     return wav_buffer.read()
 
 
+def _detect_audio_format(audio_bytes: bytes) -> str:
+    """Detect actual audio format from magic bytes."""
+    if not audio_bytes or len(audio_bytes) < 4:
+        return "unknown"
+
+    magic = audio_bytes[:4]
+
+    # RIFF (WAV, AVI, etc)
+    if magic == b'RIFF':
+        if len(audio_bytes) >= 12 and audio_bytes[8:12] == b'WAVE':
+            return 'wav'
+        return 'riff'
+
+    # EBML (WebM, Matroska)
+    if magic[:1] == b'\x1a' and len(magic) > 1 and magic[1:2] == b'E':
+        return 'webm'
+
+    # MP3 (ID3 or FFSync)
+    if magic[:2] == b'ID' or (magic[0] == 0xFF and (magic[1] & 0xE0) == 0xE0):
+        return 'mp3'
+
+    # MP4/MOV
+    if len(audio_bytes) >= 8 and audio_bytes[4:8] == b'ftyp':
+        return 'mp4'
+
+    # OGG Vorbis
+    if magic == b'OggS':
+        return 'ogg'
+
+    # FLAC
+    if magic == b'fLaC':
+        return 'flac'
+
+    return "unknown"
+
+
 def speech_to_text_from_audio_bytes(audio_bytes: bytes, fmt: str = "wav") -> Optional[str]:
     """Transcribe uploaded audio bytes using Google's recognizer."""
     if not audio_bytes or len(audio_bytes) == 0:
         return None
 
-    fmt = (fmt or "webm").lower()
+    # Auto-detect format from magic bytes if not explicitly WAV
+    detected_fmt = _detect_audio_format(audio_bytes)
+    if detected_fmt != "unknown":
+        fmt = detected_fmt
+    else:
+        fmt = (fmt or "wav").lower()
+
+    print(f"📋 Detected audio format: {fmt}")
     recognizer = sr.Recognizer()
 
     # Try direct recognition first if it's already WAV
@@ -87,18 +130,50 @@ def speech_to_text_from_audio_bytes(audio_bytes: bytes, fmt: str = "wav") -> Opt
         converted_bytes = _ensure_wav_bytes(audio_bytes, fmt)
     except Exception as e:
         print(f"Format conversion error ({fmt}): {e}")
-        # If WebM fails, it might be raw audio - try direct transcription
-        try:
-            print("Attempting direct transcription without conversion...")
-            audio_file = BytesIO(audio_bytes)
-            with sr.AudioFile(audio_file) as source:
-                audio = recognizer.record(source)
-            text = recognizer.recognize_google(audio)
-            print(f"✓ Transcribed (direct): {text}")
-            return text
-        except Exception as e2:
-            print(f"Direct transcription also failed: {e2}")
-            return None
+
+        # If format is unknown, it might be raw PCM - try to convert as raw audio
+        if fmt == "unknown":
+            try:
+                print("Treating as raw PCM audio, attempting conversion...")
+                # Assume raw PCM: mono, 16-bit, 16kHz (common browser recorder default)
+                audio_segment = AudioSegment(
+                    audio_bytes,
+                    sample_width=2,  # 16-bit = 2 bytes
+                    frame_rate=16000,
+                    channels=1
+                )
+                wav_buffer = BytesIO()
+                audio_segment.export(wav_buffer, format="wav")
+                wav_buffer.seek(0)
+                converted_bytes = wav_buffer.read()
+                print("✓ Raw PCM conversion successful")
+            except Exception as e3:
+                print(f"Raw PCM conversion failed: {e3}")
+                # Try direct transcription as last resort
+                try:
+                    print("Attempting direct transcription without conversion...")
+                    audio_file = BytesIO(audio_bytes)
+                    with sr.AudioFile(audio_file) as source:
+                        audio = recognizer.record(source)
+                    text = recognizer.recognize_google(audio)
+                    print(f"✓ Transcribed (direct): {text}")
+                    return text
+                except Exception as e4:
+                    print(f"Direct transcription also failed: {e4}")
+                    return None
+        else:
+            # Not raw PCM, try direct transcription
+            try:
+                print("Attempting direct transcription without conversion...")
+                audio_file = BytesIO(audio_bytes)
+                with sr.AudioFile(audio_file) as source:
+                    audio = recognizer.record(source)
+                text = recognizer.recognize_google(audio)
+                print(f"✓ Transcribed (direct): {text}")
+                return text
+            except Exception as e2:
+                print(f"Direct transcription also failed: {e2}")
+                return None
 
     # Transcribe the converted audio
     try:

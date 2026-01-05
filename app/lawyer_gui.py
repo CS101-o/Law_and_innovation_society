@@ -263,6 +263,8 @@ def apply_theme():
                 gap: 1.5rem;
                 margin: auto;
                 width: 100%;
+                padding-top: 0 !important;
+                margin-top: 0 !important;
             }
 
             .decorator-shapes {
@@ -270,6 +272,8 @@ def apply_theme():
                 gap: 3rem;
                 align-items: center;
                 justify-content: center;
+                margin-top: 0 !important;
+                padding-top: 0 !important;
             }
 
             .shape-circle {

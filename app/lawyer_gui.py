@@ -230,14 +230,14 @@ def apply_theme():
             /* Chat interface */
             .chat-container {
                 background: var(--main-bg);
-                min-height: 100vh;
-                padding-bottom: 180px;
+                min-height: calc(100vh - 140px);
+                padding-bottom: 0;
             }
 
             .chat-messages {
                 max-width: 900px;
                 margin: 0 auto;
-                padding: 2rem;
+                padding: 1rem 2rem;
                 padding-top: 0;
                 display: flex;
                 flex-direction: column;
@@ -248,8 +248,8 @@ def apply_theme():
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                height: calc(100vh - 300px);
-                gap: 2rem;
+                height: calc(100vh - 200px);
+                gap: 1.5rem;
                 margin: auto;
             }
 
@@ -329,7 +329,7 @@ def apply_theme():
                 left: 250px;
                 background: rgba(245, 245, 245, 0.98);
                 backdrop-filter: blur(10px);
-                padding: 1.5rem 2rem;
+                padding: 0.75rem 2rem;
                 border-top: 1px solid var(--border);
                 z-index: 100;
             }

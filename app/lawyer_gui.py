@@ -522,6 +522,35 @@ I specialize in UK Contract Law, including:
 
 Ask a question about a legal scenario to begin."""
 
+def _generate_simple_answer(irac_response: str, question: str, llm_engine: ChatOllama) -> str:
+    """Generate a Simple Answer section if missing from the IRAC response."""
+    if "Simple Answer:" in irac_response:
+        return irac_response
+
+    # Extract the essential legal conclusion from IRAC for context
+    extract_prompt = f"""Based on this legal analysis:
+
+{irac_response}
+
+User's original question: {question}
+
+Write a "Simple Answer:" that:
+1. Answers the user's question directly - YES or NO first, then briefly explain why
+2. Use everyday language, no legal jargon (avoid words like "estoppel", "promissory", "consideration")
+3. Be very short (1-2 sentences max)
+4. Focus on what the person can actually do or what will happen to them
+5. Be practical and helpful, like you're explaining to a friend
+
+Example format: "No, you can't do that because... " or "Yes, you can because..."
+
+Generate the Simple Answer now:"""
+
+    parser = StrOutputParser()
+    chain = llm_engine | parser
+    simple_answer = chain.invoke(extract_prompt)
+
+    return f"{irac_response}\n\nSimple Answer:\n{simple_answer.strip()}"
+
 # --- SESSION STATE ---
 if "view" not in st.session_state:
     st.session_state.view = "chat"
@@ -730,6 +759,9 @@ User Query: {{question}}"""
     try:
         for chunk in rag_chain.stream(refined_text):
             full_response += chunk
+
+        # Ensure Simple Answer section is present
+        full_response = _generate_simple_answer(full_response, refined_text, llm_engine)
 
         st.session_state.messages.append({"role": "assistant", "content": full_response})
 

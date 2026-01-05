@@ -148,6 +148,9 @@ def apply_theme():
             /* Hide Streamlit defaults */
             #MainMenu, footer, header {visibility: hidden;}
             .stApp > header {display: none;}
+            .stTextInput {display: none !important;}
+            [data-testid="stVerticalBlock"] > div:has(input[type="text"]) {display: none !important;}
+            .stChatInputContainer {display: none !important;}
 
             /* Main app background */
             .stApp {
@@ -155,9 +158,14 @@ def apply_theme():
             }
 
             .main .block-container {
-                padding: 0;
-                margin: 0;
-                max-width: 100%;
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+                gap: 0 !important;
+            }
+
+            .main {
+                padding: 0 !important;
             }
 
             /* Sidebar */
@@ -230,17 +238,20 @@ def apply_theme():
             /* Chat interface */
             .chat-container {
                 background: var(--main-bg);
-                min-height: calc(100vh - 140px);
-                padding-bottom: 0;
+                width: 100%;
+                padding: 0 !important;
+                margin: 0 !important;
             }
 
             .chat-messages {
                 max-width: 900px;
                 margin: 0 auto;
-                padding: 1rem 2rem;
-                padding-top: 0;
+                padding: 0 2rem;
+                padding-bottom: 160px;
                 display: flex;
                 flex-direction: column;
+                width: 100%;
+                min-height: 100vh;
             }
 
             .empty-state {
@@ -248,9 +259,10 @@ def apply_theme():
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                height: calc(100vh - 200px);
+                min-height: 100vh;
                 gap: 1.5rem;
                 margin: auto;
+                width: 100%;
             }
 
             .decorator-shapes {

@@ -148,8 +148,18 @@ def apply_theme():
             /* Hide Streamlit defaults */
             #MainMenu, footer, header {visibility: hidden;}
             .stApp > header {display: none;}
-            [data-testid="stVerticalBlock"] > div:has(input[type="text"]) {display: none !important;}
             .stChatInputContainer {display: none !important;}
+
+            /* Hide the default text input wrapper but keep the element functional */
+            .stTextInput {
+                position: absolute;
+                visibility: hidden;
+                width: 0;
+                height: 0;
+                padding: 0;
+                margin: 0;
+                border: none;
+            }
 
             /* Remove all extra vertical spacing */
             .stVerticalBlock {
@@ -373,29 +383,6 @@ def apply_theme():
                 border: 1px solid var(--border);
             }
 
-            /* Show and style text input */
-            .stTextInput {
-                display: flex !important;
-                width: 100%;
-                flex: 1;
-            }
-
-            .stTextInput > div {
-                width: 100%;
-            }
-
-            .stTextInput input {
-                width: 100% !important;
-                border: none !important;
-                background: transparent !important;
-                padding: 0 !important;
-                font-size: 0.95rem;
-                color: var(--text-dark) !important;
-            }
-
-            .stTextInput input::placeholder {
-                color: #999 !important;
-            }
 
             /* Streamlit overrides */
             .stButton > button {

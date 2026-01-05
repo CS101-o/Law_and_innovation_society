@@ -156,6 +156,7 @@ def apply_theme():
 
             .main .block-container {
                 padding: 0;
+                margin: 0;
                 max-width: 100%;
             }
 
@@ -237,7 +238,7 @@ def apply_theme():
                 max-width: 900px;
                 margin: 0 auto;
                 padding: 2rem;
-                padding-top: 4rem;
+                padding-top: 0;
                 display: flex;
                 flex-direction: column;
             }

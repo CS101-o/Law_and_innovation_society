@@ -261,7 +261,7 @@ def apply_theme():
                 max-width: 900px;
                 margin: 0 auto;
                 padding: 0 2rem;
-                padding-bottom: 160px;
+                padding-bottom: 250px;
                 display: flex;
                 flex-direction: column;
                 width: 100%;

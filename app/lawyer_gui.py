@@ -248,7 +248,7 @@ def apply_theme():
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                min-height: 400px;
+                height: calc(100vh - 300px);
                 gap: 2rem;
                 margin: auto;
             }
@@ -598,12 +598,10 @@ user_input = st.text_input(
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Voice input - styled separately
-col_mic, col_send = st.columns([1, 3])
-with col_mic:
-    st.markdown('<div style="display: flex; justify-content: center; padding: 0.5rem 0;">', unsafe_allow_html=True)
-    audio_data = mic_recorder(start_prompt="🎤", stop_prompt="⏹️", just_once=True, key="mic")
-    st.markdown('</div>', unsafe_allow_html=True)
+# Voice input - mic button
+st.markdown('<div style="display: flex; justify-content: center; padding: 0.5rem 0;">', unsafe_allow_html=True)
+audio_data = mic_recorder(start_prompt="🎤", stop_prompt="⏹️", just_once=True, key="mic")
+st.markdown('</div>', unsafe_allow_html=True)
 
 if audio_data and audio_data.get("bytes"):
     with st.spinner("Transcribing voice input..."):

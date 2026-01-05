@@ -271,13 +271,11 @@ def apply_theme():
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                justify-content: center;
-                min-height: 100vh;
+                justify-content: flex-start;
+                padding-top: 100px;
                 gap: 1.5rem;
-                margin: auto;
+                margin: 0;
                 width: 100%;
-                padding-top: 0 !important;
-                margin-top: 0 !important;
             }
 
             .decorator-shapes {

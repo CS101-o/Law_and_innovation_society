@@ -15,3 +15,5 @@ transformers
 accelerate
 networkx
 matplotlib
+mlx-lm
+torch

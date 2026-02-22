@@ -17,6 +17,7 @@ from streamlit_mic_recorder import mic_recorder
 from core.graph_builder import LegalKnowledgeGraph
 from core.hybrid_retriever import HybridGraphRetriever
 from core.refiner import QueryRefiner
+from core.simplifier import get_simplifier
 
 from src.pdf_classifier import (
     classify_pdf_documents,
@@ -396,6 +397,18 @@ def load_refiner():
     return QueryRefiner()
 
 @st.cache_resource
+def load_simplifier():
+    """Load the Stage 2 simplification model (mlx-lm based)."""
+    try:
+        return get_simplifier()
+    except ImportError:
+        st.warning("⚠️ mlx-lm not installed. Install with: pip install mlx-lm")
+        return None
+    except Exception as e:
+        st.warning(f"⚠️ Could not load simplifier: {e}")
+        return None
+
+@st.cache_resource
 def load_scope_checker():
     return ChatOllama(model="qwen2.5:0.5b", temperature=0)
 
@@ -483,6 +496,7 @@ def load_rag_system(mode: str):
 
 refiner = load_refiner()
 scope_checker = load_scope_checker()
+simplifier = load_simplifier()  # Stage 2: Response simplification
 
 # --- SCOPE CHECKING (IMPROVED) ---
 def is_out_of_scope(text: str) -> bool:
@@ -522,13 +536,18 @@ I specialize in UK Contract Law, including:
 
 Ask a question about a legal scenario to begin."""
 
-def _generate_simple_answer(irac_response: str, question: str, llm_engine: ChatOllama) -> str:
-    """Generate a Simple Answer section if missing from the IRAC response."""
-    if "Simple Answer:" in irac_response:
-        return irac_response
-
-    # Extract the essential legal conclusion from IRAC for context
-    extract_prompt = f"""Based on this legal analysis:
+def _generate_elderly_friendly_answer(
+    irac_response: str, question: str, llm_engine: ChatOllama
+) -> str:
+    """
+    Generate an elderly-friendly simplified version of the IRAC response.
+    Uses Stage 2 simplification layer if available.
+    """
+    if not simplifier:
+        # Fallback to old method if simplifier unavailable
+        if "Simple Answer:" in irac_response:
+            return irac_response
+        extract_prompt = f"""Based on this legal analysis:
 
 {irac_response}
 
@@ -544,12 +563,18 @@ Write a "Simple Answer:" that:
 Example format: "No, you can't do that because... " or "Yes, you can because..."
 
 Generate the Simple Answer now:"""
+        parser = StrOutputParser()
+        chain = llm_engine | parser
+        simple_answer = chain.invoke(extract_prompt)
+        return f"{irac_response}\n\nSimple Answer:\n{simple_answer.strip()}"
 
-    parser = StrOutputParser()
-    chain = llm_engine | parser
-    simple_answer = chain.invoke(extract_prompt)
-
-    return f"{irac_response}\n\nSimple Answer:\n{simple_answer.strip()}"
+    # Use Stage 2 simplifier for elderly-friendly response
+    try:
+        simplified = simplifier.simplify(irac_response, question)
+        return f"{irac_response}\n\n---\n\n**Elderly-Friendly Explanation:**\n\n{simplified}"
+    except Exception as e:
+        st.warning(f"⚠️ Simplification step failed: {e}. Showing original response.")
+        return irac_response
 
 # --- SESSION STATE ---
 if "view" not in st.session_state:
@@ -760,8 +785,8 @@ User Query: {{question}}"""
         for chunk in rag_chain.stream(refined_text):
             full_response += chunk
 
-        # Ensure Simple Answer section is present
-        full_response = _generate_simple_answer(full_response, refined_text, llm_engine)
+        # Stage 2: Generate elderly-friendly simplification
+        full_response = _generate_elderly_friendly_answer(full_response, refined_text, llm_engine)
 
         st.session_state.messages.append({"role": "assistant", "content": full_response})
 
